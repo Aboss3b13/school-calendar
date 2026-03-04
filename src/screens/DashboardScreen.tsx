@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Pressable,
@@ -8,14 +8,20 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppContext } from '../context/AppContext';
-import InfoWidget from '../components/InfoWidget';
 import { weightedSubjectAverage } from '../services/grades';
+import { computeCountdown, CountdownParts } from '../services/notifications';
 import { shadows, spacing, radii, gradeColor } from '../theme/theme';
+import type { TabParamList } from '../../App';
+
+type NavProp = BottomTabNavigationProp<TabParamList>;
 
 function timeGreeting(t: (key: string) => string): string {
   const h = new Date().getHours();
@@ -25,13 +31,39 @@ function timeGreeting(t: (key: string) => string): string {
   return '🌙 ' + t('dashboard.goodEvening');
 }
 
+/* ── Countdown digit component ────────────────────────────────── */
+function CountdownUnit({ value, label, color }: { value: number; label: string; color: string }) {
+  return (
+    <View style={cdStyles.unit}>
+      <View style={[cdStyles.digitBox, { backgroundColor: `${color}18` }]}>
+        <Text style={[cdStyles.digit, { color }]}>{String(value).padStart(2, '0')}</Text>
+      </View>
+      <Text style={cdStyles.unitLabel}>{label}</Text>
+    </View>
+  );
+}
+
+const cdStyles = StyleSheet.create({
+  unit: { alignItems: 'center', gap: 4 },
+  digitBox: { borderRadius: radii.sm + 2, paddingHorizontal: 10, paddingVertical: 6, minWidth: 44, alignItems: 'center' },
+  digit: { fontWeight: '900', fontSize: 20, fontVariant: ['tabular-nums'] },
+  unitLabel: { color: 'rgba(255,255,255,0.6)', fontSize: 9, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+});
+
+/* ── Main Screen ──────────────────────────────────────────────── */
+
 export default function DashboardScreen() {
   const { t } = useTranslation();
   const { data, colors, syncCalendar, fontScaleMultiplier, isDark } = useAppContext();
+  const navigation = useNavigation<NavProp>();
+  const insets = useSafeAreaInsets();
   const [isSyncing, setIsSyncing] = useState(false);
   const { width } = useWindowDimensions();
   const pulseValue = useRef(new Animated.Value(0)).current;
   const fadeIn = useRef(new Animated.Value(0)).current;
+
+  // Live countdown state
+  const [countdown, setCountdown] = useState<CountdownParts | null>(null);
 
   useEffect(() => {
     Animated.timing(fadeIn, { toValue: 1, duration: 400, useNativeDriver: true }).start();
@@ -54,10 +86,25 @@ export default function DashboardScreen() {
     return () => animation.stop();
   }, [data.settings.animationsEnabled, pulseValue]);
 
-  const nextEvent = useMemo(() => {
+  const nextExam = useMemo(() => {
     const now = Date.now();
-    return data.events.find((event) => new Date(event.start).getTime() >= now);
+    return data.events
+      .filter((e) => e.entryType === 'exam' && new Date(e.start).getTime() >= now)
+      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())[0] ?? null;
   }, [data.events]);
+
+  // Live countdown tick every second
+  useEffect(() => {
+    if (!nextExam) {
+      setCountdown(null);
+      return;
+    }
+
+    const tick = () => setCountdown(computeCountdown(nextExam.start));
+    tick();
+    const intervalId = setInterval(tick, 1000);
+    return () => clearInterval(intervalId);
+  }, [nextExam]);
 
   const upcomingEvents = useMemo(() => {
     const now = Date.now();
@@ -106,20 +153,26 @@ export default function DashboardScreen() {
     return result ? result.rounded : null;
   }, [data.grades, data.gradeSubjectWeights]);
 
-  async function onSync() {
+  const onSync = useCallback(async () => {
     setIsSyncing(true);
     try {
       await syncCalendar();
     } finally {
       setIsSyncing(false);
     }
-  }
+  }, [syncCalendar]);
 
   const greeting = timeGreeting(t);
   const heroRadius = data.settings.cardStyle === 'soft' ? radii.xl + 4 : data.settings.cardStyle === 'glass' ? radii.xl : radii.lg;
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: colors.background }}
+      contentContainerStyle={[
+        styles.content,
+        { paddingTop: insets.top + spacing.md, paddingBottom: insets.bottom + spacing.xl },
+      ]}
+    >
       {/* ── Hero Card ─────────────────────────── */}
       <Animated.View
         style={{
@@ -152,23 +205,61 @@ export default function DashboardScreen() {
           <Text style={[styles.heroText, { fontSize: 14 * fontScaleMultiplier }]}>{t('dashboard.welcome')}</Text>
 
           <View style={styles.heroFooter}>
-            <View style={styles.heroStat}>
+            <Pressable style={styles.heroStat} onPress={() => navigation.navigate('Calendar')}>
               <Text style={styles.heroStatVal}>{examCount}</Text>
               <Text style={styles.heroStatLabel}>{t('dashboard.upcomingExams')}</Text>
-            </View>
+            </Pressable>
             <View style={styles.heroStatDivider} />
-            <View style={styles.heroStat}>
+            <Pressable style={styles.heroStat} onPress={() => navigation.navigate('Tasks')}>
               <Text style={styles.heroStatVal}>{openTasks}</Text>
               <Text style={styles.heroStatLabel}>{t('dashboard.openTasks')}</Text>
-            </View>
+            </Pressable>
             <View style={styles.heroStatDivider} />
-            <View style={styles.heroStat}>
+            <Pressable style={styles.heroStat} onPress={() => navigation.navigate('Grades')}>
               <Text style={styles.heroStatVal}>{averageGrade ? averageGrade.toFixed(1) : '-'}</Text>
               <Text style={styles.heroStatLabel}>{t('grades.averageSwiss')}</Text>
-            </View>
+            </Pressable>
           </View>
         </LinearGradient>
       </Animated.View>
+
+      {/* ── Exam Countdown ────────────────────── */}
+      {nextExam && countdown && !countdown.isPast ? (
+        <Pressable onPress={() => navigation.navigate('Calendar')}>
+          <LinearGradient
+            colors={isDark ? ['#991B1B', '#7F1D1D'] : ['#EF4444', '#DC2626']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[styles.countdownCard, shadows.md, { borderRadius: heroRadius }]}
+          >
+            <View style={styles.countdownHeader}>
+              <Ionicons name="alarm-outline" size={20} color="#fff" />
+              <Text style={styles.countdownTitle} numberOfLines={1}>
+                {t('dashboard.examCountdown')}
+              </Text>
+            </View>
+            <Text style={styles.countdownExamName} numberOfLines={1}>
+              {nextExam.title}{nextExam.subject ? ` · ${nextExam.subject}` : ''}
+            </Text>
+            <Text style={styles.countdownDate}>
+              {dayjs(nextExam.start).format('dddd, DD MMMM · HH:mm')}
+            </Text>
+            <View style={styles.countdownRow}>
+              {countdown.months > 0 && (
+                <CountdownUnit value={countdown.months} label={t('countdown.months')} color="#fff" />
+              )}
+              <CountdownUnit value={countdown.days} label={t('countdown.days')} color="#fff" />
+              <CountdownUnit value={countdown.hours} label={t('countdown.hours')} color="#fff" />
+              <CountdownUnit value={countdown.minutes} label={t('countdown.min')} color="#fff" />
+              <CountdownUnit value={countdown.seconds} label={t('countdown.sec')} color="#fff" />
+            </View>
+            <View style={styles.studyHint}>
+              <Ionicons name="book-outline" size={14} color="rgba(255,255,255,0.7)" />
+              <Text style={styles.studyHintText}>{t('dashboard.studyReminder')}</Text>
+            </View>
+          </LinearGradient>
+        </Pressable>
+      ) : null}
 
       {/* ── Sync Bar ─────────────────────────── */}
       <Pressable
@@ -178,6 +269,7 @@ export default function DashboardScreen() {
           shadows.sm,
           {
             backgroundColor: colors.card,
+            borderRadius: radii.md,
             opacity: pressed ? 0.85 : 1,
             transform: [{ scale: pressed ? 0.985 : 1 }],
           },
@@ -196,69 +288,106 @@ export default function DashboardScreen() {
 
       {/* ── Stats Grid ───────────────────────── */}
       <Animated.View style={[styles.statsRow, isTablet ? styles.statsRowTablet : undefined, { opacity: fadeIn }]}>
-        <InfoWidget
-          title={t('dashboard.upcomingExams')}
-          value={examCount}
-          accent={colors.accent}
-          textColor={colors.text}
-          subtleColor={colors.subtle}
-          background={colors.card}
-          borderColor={colors.border}
-        />
-        <InfoWidget
-          title={t('dashboard.openTasks')}
-          value={openTasks}
-          accent={colors.accent}
-          textColor={colors.text}
-          subtleColor={colors.subtle}
-          background={colors.card}
-          borderColor={colors.border}
-        />
-        <InfoWidget
-          title={t('dashboard.notesCount')}
-          value={data.notes.length}
-          accent={colors.accent}
-          textColor={colors.text}
-          subtleColor={colors.subtle}
-          background={colors.card}
-          borderColor={colors.border}
-        />
-        <InfoWidget
-          title={t('calendar.lessons')}
-          value={lessonCount}
-          accent={colors.accent}
-          textColor={colors.text}
-          subtleColor={colors.subtle}
-          background={colors.card}
-          borderColor={colors.border}
-        />
+        <Pressable style={styles.statFlex} onPress={() => navigation.navigate('Calendar')}>
+          <View style={[styles.statCard, shadows.sm, { backgroundColor: colors.card }]}>
+            <View style={[styles.statAccent, { backgroundColor: '#EF4444' }]} />
+            <View style={styles.statInner}>
+              <Text style={[styles.statValue, { color: colors.text }]}>{examCount}</Text>
+              <Text style={[styles.statLabel, { color: colors.subtle }]}>{t('dashboard.upcomingExams')}</Text>
+            </View>
+          </View>
+        </Pressable>
+        <Pressable style={styles.statFlex} onPress={() => navigation.navigate('Tasks')}>
+          <View style={[styles.statCard, shadows.sm, { backgroundColor: colors.card }]}>
+            <View style={[styles.statAccent, { backgroundColor: colors.accent }]} />
+            <View style={styles.statInner}>
+              <Text style={[styles.statValue, { color: colors.text }]}>{openTasks}</Text>
+              <Text style={[styles.statLabel, { color: colors.subtle }]}>{t('dashboard.openTasks')}</Text>
+            </View>
+          </View>
+        </Pressable>
+        <Pressable style={styles.statFlex} onPress={() => navigation.navigate('Notes')}>
+          <View style={[styles.statCard, shadows.sm, { backgroundColor: colors.card }]}>
+            <View style={[styles.statAccent, { backgroundColor: '#10B981' }]} />
+            <View style={styles.statInner}>
+              <Text style={[styles.statValue, { color: colors.text }]}>{data.notes.length}</Text>
+              <Text style={[styles.statLabel, { color: colors.subtle }]}>{t('dashboard.notesCount')}</Text>
+            </View>
+          </View>
+        </Pressable>
+        <Pressable style={styles.statFlex} onPress={() => navigation.navigate('Calendar')}>
+          <View style={[styles.statCard, shadows.sm, { backgroundColor: colors.card }]}>
+            <View style={[styles.statAccent, { backgroundColor: '#8B5CF6' }]} />
+            <View style={styles.statInner}>
+              <Text style={[styles.statValue, { color: colors.text }]}>{lessonCount}</Text>
+              <Text style={[styles.statLabel, { color: colors.subtle }]}>{t('calendar.lessons')}</Text>
+            </View>
+          </View>
+        </Pressable>
       </Animated.View>
 
       {/* ── Task Progress ────────────────────── */}
       {totalTasks > 0 ? (
-        <View style={[styles.progressCard, shadows.sm, { backgroundColor: colors.card }]}>
-          <View style={styles.progressHeader}>
-            <Text style={{ color: colors.text, fontWeight: '800', fontSize: 15 * fontScaleMultiplier }}>
-              {t('tasks.title')}
-            </Text>
-            <Text style={{ color: colors.accent, fontWeight: '900', fontSize: 15 }}>
-              {completedPct}%
-            </Text>
+        <Pressable onPress={() => navigation.navigate('Tasks')}>
+          <View style={[styles.progressCard, shadows.sm, { backgroundColor: colors.card }]}>
+            <View style={styles.progressHeader}>
+              <Text style={{ color: colors.text, fontWeight: '800', fontSize: 15 * fontScaleMultiplier }}>
+                {t('tasks.title')}
+              </Text>
+              <Text style={{ color: colors.accent, fontWeight: '900', fontSize: 15 }}>
+                {completedPct}%
+              </Text>
+            </View>
+            <View style={[styles.progressTrack, { backgroundColor: isDark ? '#334155' : '#E2E8F0' }]}>
+              <View
+                style={[styles.progressFill, { width: `${completedPct}%`, backgroundColor: colors.accent }]}
+              />
+            </View>
           </View>
-          <View style={[styles.progressTrack, { backgroundColor: isDark ? '#334155' : '#E2E8F0' }]}>
-            <View
-              style={[styles.progressFill, { width: `${completedPct}%`, backgroundColor: colors.accent }]}
-            />
-          </View>
-        </View>
+        </Pressable>
       ) : null}
+
+      {/* ── Quick Insights ───────────────────── */}
+      <View style={[styles.insightCard, shadows.sm, { backgroundColor: colors.card }]}>
+        <Pressable style={styles.insightRow} onPress={() => navigation.navigate('Calendar')}>
+          <Ionicons name="today-outline" size={18} color={colors.accent} />
+          <Text style={{ color: colors.text, fontWeight: '700', fontSize: 14 * fontScaleMultiplier, flex: 1 }}>
+            {t('dashboard.todayLessons')}: {todayLessonCount}
+          </Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.subtle} />
+        </Pressable>
+        {highPriorityTasks > 0 ? (
+          <Pressable style={styles.insightRow} onPress={() => navigation.navigate('Tasks')}>
+            <Ionicons name="warning-outline" size={18} color="#EF4444" />
+            <Text style={{ color: '#EF4444', fontWeight: '700', fontSize: 14 * fontScaleMultiplier, flex: 1 }}>
+              {highPriorityTasks} {t('dashboard.urgentTasks')}
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.subtle} />
+          </Pressable>
+        ) : null}
+        {averageGrade ? (
+          <Pressable style={styles.insightRow} onPress={() => navigation.navigate('Grades')}>
+            <Ionicons name="trending-up-outline" size={18} color={gradeColor(averageGrade)} />
+            <Text style={{ color: colors.text, fontWeight: '700', fontSize: 14 * fontScaleMultiplier, flex: 1 }}>
+              {t('grades.roundedAvg')}: <Text style={{ color: gradeColor(averageGrade) }}>{averageGrade.toFixed(1)}</Text>
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.subtle} />
+          </Pressable>
+        ) : null}
+      </View>
 
       {/* ── Next Lessons ────────────────────── */}
       {nextLessons.length > 0 ? (
         <View style={styles.timelineSection}>
-          <Text style={[styles.sectionHeading, { color: colors.text, fontSize: 18 * fontScaleMultiplier }]}>
-            {t('dashboard.nextLessons')}
-          </Text>
+          <Pressable
+            style={styles.sectionHeaderRow}
+            onPress={() => navigation.navigate('Calendar')}
+          >
+            <Text style={[styles.sectionHeading, { color: colors.text, fontSize: 18 * fontScaleMultiplier }]}>
+              {t('dashboard.nextLessons')}
+            </Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.subtle} />
+          </Pressable>
           {nextLessons.map((lesson, idx) => (
             <View key={`lesson_${lesson.id}_${idx}`} style={styles.timelineRow}>
               <View style={styles.timelineDotCol}>
@@ -285,74 +414,65 @@ export default function DashboardScreen() {
         </View>
       ) : null}
 
-      {/* ── Quick Insights ───────────────────── */}
-      <View style={[styles.insightCard, shadows.sm, { backgroundColor: colors.card }]}>
-        <View style={styles.insightRow}>
-          <Ionicons name="today-outline" size={18} color={colors.accent} />
-          <Text style={{ color: colors.text, fontWeight: '700', fontSize: 14 * fontScaleMultiplier }}>
-            {t('dashboard.todayLessons')}: {todayLessonCount}
-          </Text>
-        </View>
-        {highPriorityTasks > 0 ? (
-          <View style={styles.insightRow}>
-            <Ionicons name="warning-outline" size={18} color="#EF4444" />
-            <Text style={{ color: '#EF4444', fontWeight: '700', fontSize: 14 * fontScaleMultiplier }}>
-              {highPriorityTasks} {t('dashboard.urgentTasks')}
-            </Text>
-          </View>
-        ) : null}
-        {averageGrade ? (
-          <View style={styles.insightRow}>
-            <Ionicons name="trending-up-outline" size={18} color="#10B981" />
-            <Text style={{ color: colors.text, fontWeight: '700', fontSize: 14 * fontScaleMultiplier }}>
-              {t('grades.roundedAvg')}: {averageGrade.toFixed(1)}
-            </Text>
-          </View>
-        ) : null}
-      </View>
-
-      {/* ── Upcoming Timeline ────────────────── */}
+      {/* ── Upcoming Events ──────────────────── */}
       {upcomingEvents.length > 0 ? (
         <View style={styles.timelineSection}>
-          <Text style={[styles.sectionHeading, { color: colors.text, fontSize: 18 * fontScaleMultiplier }]}>
-            {t('dashboard.nextEvent')}
-          </Text>
+          <Pressable
+            style={styles.sectionHeaderRow}
+            onPress={() => navigation.navigate('Calendar')}
+          >
+            <Text style={[styles.sectionHeading, { color: colors.text, fontSize: 18 * fontScaleMultiplier }]}>
+              {t('dashboard.nextEvent')}
+            </Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.subtle} />
+          </Pressable>
           {upcomingEvents.map((event, idx) => (
-            <View key={`${event.id}_${idx}`} style={styles.timelineRow}>
-              <View style={styles.timelineDotCol}>
-                <View
-                  style={[
-                    styles.timelineDot,
-                    {
-                      backgroundColor: event.isExam ? '#EF4444' : colors.accent,
-                      borderColor: colors.card,
-                    },
-                  ]}
-                />
-                {idx < upcomingEvents.length - 1 ? (
-                  <View style={[styles.timelineLine, { backgroundColor: colors.border }]} />
-                ) : null}
-              </View>
-              <View style={[styles.timelineCard, shadows.sm, { backgroundColor: colors.card }]}>
-                <View style={styles.timelineCardHeader}>
-                  <Text
-                    style={{ color: colors.text, fontWeight: '700', fontSize: 14 * fontScaleMultiplier, flex: 1 }}
-                    numberOfLines={1}
-                  >
-                    {event.title}
-                  </Text>
-                  {event.isExam ? (
-                    <View style={styles.examBadge}>
-                      <Text style={styles.examBadgeText}>{t('calendar.exams')}</Text>
-                    </View>
+            <Pressable key={`${event.id}_${idx}`} onPress={() => navigation.navigate('Calendar')}>
+              <View style={styles.timelineRow}>
+                <View style={styles.timelineDotCol}>
+                  <View
+                    style={[
+                      styles.timelineDot,
+                      {
+                        backgroundColor: event.isExam ? '#EF4444' : event.entryType === 'event' ? '#F59E0B' : colors.accent,
+                        borderColor: colors.card,
+                      },
+                    ]}
+                  />
+                  {idx < upcomingEvents.length - 1 ? (
+                    <View style={[styles.timelineLine, { backgroundColor: colors.border }]} />
                   ) : null}
                 </View>
-                <Text style={{ color: colors.subtle, fontSize: 12 }}>
-                  {dayjs(event.start).format('ddd, DD MMM • HH:mm')}
-                  {event.subject ? ` • ${event.subject}` : ''}
-                </Text>
+                <View style={[styles.timelineCard, shadows.sm, { backgroundColor: colors.card }]}>
+                  <View style={styles.timelineCardHeader}>
+                    <Ionicons
+                      name={event.isExam ? 'alert-circle' : event.entryType === 'lesson' ? 'book' : 'calendar'}
+                      size={14}
+                      color={event.isExam ? '#EF4444' : event.entryType === 'event' ? '#F59E0B' : colors.accent}
+                    />
+                    <Text
+                      style={{ color: colors.text, fontWeight: '700', fontSize: 14 * fontScaleMultiplier, flex: 1 }}
+                      numberOfLines={1}
+                    >
+                      {event.title}
+                    </Text>
+                    {event.isExam ? (
+                      <View style={styles.examBadge}>
+                        <Text style={styles.examBadgeText}>{t('calendar.exams')}</Text>
+                      </View>
+                    ) : event.entryType === 'event' ? (
+                      <View style={[styles.examBadge, { backgroundColor: '#FEF3C7' }]}>
+                        <Text style={[styles.examBadgeText, { color: '#D97706' }]}>{t('calendar.events')}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                  <Text style={{ color: colors.subtle, fontSize: 12 }}>
+                    {dayjs(event.start).format('ddd, DD MMM • HH:mm')}
+                    {event.subject ? ` • ${event.subject}` : ''}
+                  </Text>
+                </View>
               </View>
-            </View>
+            </Pressable>
           ))}
         </View>
       ) : null}
@@ -363,8 +483,6 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   content: {
     padding: spacing.md,
-    paddingTop: spacing.xxl,
-    paddingBottom: spacing.xl,
     gap: spacing.md,
   },
   hero: {
@@ -416,13 +534,64 @@ const styles = StyleSheet.create({
     width: 1,
     backgroundColor: 'rgba(255,255,255,0.18)',
   },
+
+  /* ── Countdown ────────────── */
+  countdownCard: {
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  countdownHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  countdownTitle: {
+    color: '#fff',
+    fontWeight: '900',
+    fontSize: 16,
+    letterSpacing: -0.3,
+  },
+  countdownExamName: {
+    color: 'rgba(255,255,255,0.85)',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  countdownDate: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  countdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing.sm + 4,
+    marginTop: spacing.xs,
+  },
+  studyHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: spacing.xs,
+    paddingTop: spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.15)',
+  },
+  studyHintText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 12,
+    fontWeight: '600',
+    fontStyle: 'italic',
+  },
+
+  /* ── Sync ─────────────────── */
   syncButton: {
-    borderRadius: radii.md,
     paddingVertical: 13,
     paddingHorizontal: spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
   },
+
+  /* ── Stats ────────────────── */
   statsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -431,6 +600,38 @@ const styles = StyleSheet.create({
   statsRowTablet: {
     gap: spacing.md,
   },
+  statFlex: {
+    flexGrow: 1,
+    flexBasis: '46%',
+    minWidth: 130,
+  },
+  statCard: {
+    borderRadius: radii.md,
+    overflow: 'hidden',
+    flexDirection: 'row',
+    minHeight: 80,
+  },
+  statAccent: {
+    width: 4,
+  },
+  statInner: {
+    flex: 1,
+    padding: spacing.sm + 4,
+    justifyContent: 'space-between',
+  },
+  statValue: {
+    fontWeight: '900',
+    fontSize: 26,
+    letterSpacing: -0.5,
+  },
+  statLabel: {
+    fontWeight: '700',
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+
+  /* ── Progress ─────────────── */
   progressCard: {
     borderRadius: radii.md,
     padding: spacing.md,
@@ -450,13 +651,32 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 3,
   },
+
+  /* ── Insight ──────────────── */
+  insightCard: {
+    borderRadius: radii.md,
+    padding: spacing.md,
+    gap: spacing.sm + 2,
+  },
+  insightRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+
+  /* ── Timeline ─────────────── */
   timelineSection: {
     gap: 0,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm + 4,
   },
   sectionHeading: {
     fontWeight: '900',
     letterSpacing: -0.3,
-    marginBottom: spacing.sm + 4,
   },
   timelineRow: {
     flexDirection: 'row',
@@ -502,15 +722,5 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontSize: 10,
     textTransform: 'uppercase',
-  },
-  insightCard: {
-    borderRadius: radii.md,
-    padding: spacing.md,
-    gap: spacing.sm + 2,
-  },
-  insightRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
   },
 });

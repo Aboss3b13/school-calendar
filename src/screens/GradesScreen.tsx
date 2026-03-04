@@ -10,6 +10,7 @@ import {
   UIManager,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 import { useTranslation } from 'react-i18next';
@@ -38,6 +39,7 @@ function clamp(n: number, min: number, max: number) {
 export default function GradesScreen() {
   const { t } = useTranslation();
   const { data, colors, isDark, addGrade, removeGrade, setGradeSubjectWeight, fontScaleMultiplier } = useAppContext();
+  const insets = useSafeAreaInsets();
 
   const [title, setTitle] = useState('Exam');
   const [subject, setSubject] = useState('MAT');
@@ -112,7 +114,7 @@ export default function GradesScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md, paddingBottom: insets.bottom + spacing.xl }]}>
         {/* ── Header ─────────────────────── */}
         <View style={styles.screenHeader}>
           <Text style={[styles.pageTitle, { color: colors.text, fontSize: 24 * fontScaleMultiplier }]}>{t('grades.title')}</Text>
@@ -318,8 +320,6 @@ export default function GradesScreen() {
 const styles = StyleSheet.create({
   content: {
     padding: spacing.md,
-    paddingTop: spacing.xxl,
-    paddingBottom: spacing.xl,
     gap: spacing.md,
   },
   screenHeader: {

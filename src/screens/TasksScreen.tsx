@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { LayoutAnimation, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
@@ -10,6 +11,7 @@ import { shadows, spacing, radii, priorityColors } from '../theme/theme';
 export default function TasksScreen() {
   const { t } = useTranslation();
   const { data, colors, isDark, addTask, toggleTask, deleteTask, fontScaleMultiplier } = useAppContext();
+  const insets = useSafeAreaInsets();
 
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState('');
@@ -56,7 +58,7 @@ export default function TasksScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md, paddingBottom: insets.bottom + spacing.xl }]}>
         {/* ── Header ──────────────────────────── */}
         <View style={styles.header}>
           <View>
@@ -271,8 +273,6 @@ export default function TasksScreen() {
 const styles = StyleSheet.create({
   content: {
     padding: spacing.md,
-    paddingTop: spacing.xxl,
-    paddingBottom: spacing.xl,
     gap: spacing.sm + 2,
   },
   header: {

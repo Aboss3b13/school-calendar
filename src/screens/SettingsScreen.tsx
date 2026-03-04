@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useAppContext } from '../context/AppContext';
@@ -22,6 +23,7 @@ const fontScales: FontScale[] = ['small', 'normal', 'large'];
 export default function SettingsScreen() {
   const { t } = useTranslation();
   const { data, colors, isDark, updateSettings, syncCalendar, fontScaleMultiplier } = useAppContext();
+  const insets = useSafeAreaInsets();
 
   const [iCalUrl, setICalUrl] = useState(data.settings.iCalUrl);
   const [isSavingCalendar, setIsSavingCalendar] = useState(false);
@@ -82,7 +84,7 @@ export default function SettingsScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md, paddingBottom: insets.bottom + spacing.xl }]}>
         {/* ── Header ─────────────────────── */}
         <Text style={[styles.pageTitle, { color: colors.text, fontSize: 24 * fontScaleMultiplier }]}>
           {t('settings.title')}
@@ -183,8 +185,6 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   content: {
     padding: spacing.md,
-    paddingTop: spacing.xxl,
-    paddingBottom: spacing.xl,
     gap: spacing.md,
   },
   pageTitle: {

@@ -4,6 +4,7 @@ import React, { useEffect } from 'react';
 import { ActivityIndicator, Platform, Text, View } from 'react-native';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import './src/i18n';
@@ -13,10 +14,18 @@ import CalendarScreen from './src/screens/CalendarScreen';
 import TasksScreen from './src/screens/TasksScreen';
 import NotesScreen from './src/screens/NotesScreen';
 import GradesScreen from './src/screens/GradesScreen';
-import WidgetsScreen from './src/screens/WidgetsScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 
-const Tab = createBottomTabNavigator();
+export type TabParamList = {
+  Dashboard: undefined;
+  Calendar: undefined;
+  Tasks: undefined;
+  Notes: undefined;
+  Grades: undefined;
+  Settings: undefined;
+};
+
+const Tab = createBottomTabNavigator<TabParamList>();
 
 const TAB_ICONS: Record<string, string> = {
   Dashboard: 'grid',
@@ -24,7 +33,6 @@ const TAB_ICONS: Record<string, string> = {
   Tasks: 'checkmark-done',
   Notes: 'document-text',
   Grades: 'calculator',
-  Widgets: 'apps',
   Settings: 'options',
 };
 
@@ -97,7 +105,6 @@ function MainTabs() {
         <Tab.Screen name="Tasks" component={TasksScreen} options={{ title: t('tabs.tasks') }} />
         <Tab.Screen name="Notes" component={NotesScreen} options={{ title: t('tabs.notes') }} />
         <Tab.Screen name="Grades" component={GradesScreen} options={{ title: t('tabs.grades') }} />
-        <Tab.Screen name="Widgets" component={WidgetsScreen} options={{ title: t('tabs.widgets') }} />
         <Tab.Screen name="Settings" component={SettingsScreen} options={{ title: t('tabs.settings') }} />
       </Tab.Navigator>
     </NavigationContainer>
@@ -106,8 +113,10 @@ function MainTabs() {
 
 export default function App() {
   return (
-    <AppProvider>
-      <MainTabs />
-    </AppProvider>
+    <SafeAreaProvider>
+      <AppProvider>
+        <MainTabs />
+      </AppProvider>
+    </SafeAreaProvider>
   );
 }

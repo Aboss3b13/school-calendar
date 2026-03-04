@@ -14,7 +14,7 @@ export const resources = {
       dashboard: {
         title: 'Study Command Center',
         welcome: 'Stay on top of classes, exams, and notes.',
-        nextEvent: 'Next class',
+        nextEvent: 'Upcoming Events',
         upcomingExams: 'Upcoming exams',
         openTasks: 'Open tasks',
         notesCount: 'Notes',
@@ -27,6 +27,15 @@ export const resources = {
         nextLessons: 'Next Lessons',
         todayLessons: 'Today\'s lessons',
         urgentTasks: 'urgent tasks',
+        examCountdown: 'Next Exam Countdown',
+        studyReminder: 'Start studying early — you\'ll get reminders!',
+      },
+      countdown: {
+        months: 'Months',
+        days: 'Days',
+        hours: 'Hours',
+        min: 'Min',
+        sec: 'Sec',
       },
       calendar: {
         title: 'School Calendar',
@@ -187,7 +196,7 @@ export const resources = {
       dashboard: {
         title: 'Lern-Kommandozentrale',
         welcome: 'Behalte Stunden, Prüfungen und Notizen im Griff.',
-        nextEvent: 'Nächste Stunde',
+        nextEvent: 'Kommende Ereignisse',
         upcomingExams: 'Kommende Prüfungen',
         openTasks: 'Offene Aufgaben',
         notesCount: 'Notizen',
@@ -200,6 +209,15 @@ export const resources = {
         nextLessons: 'Nächste Lektionen',
         todayLessons: 'Heutige Lektionen',
         urgentTasks: 'dringende Aufgaben',
+        examCountdown: 'Nächster Prüfungs-Countdown',
+        studyReminder: 'Fang früh an zu lernen — du bekommst Erinnerungen!',
+      },
+      countdown: {
+        months: 'Monate',
+        days: 'Tage',
+        hours: 'Std',
+        min: 'Min',
+        sec: 'Sek',
       },
       calendar: {
         title: 'Schulkalender',

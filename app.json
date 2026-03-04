@@ -30,6 +30,12 @@
     "plugins": [
       "expo-font",
       [
+        "expo-notifications",
+        {
+          "sounds": []
+        }
+      ],
+      [
         "react-native-android-widget",
         {
           "widgets": [

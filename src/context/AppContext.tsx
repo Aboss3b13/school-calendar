@@ -4,6 +4,7 @@ import { requestWidgetUpdate } from 'react-native-android-widget';
 import i18n from '../i18n';
 import { fetchCalendarEvents } from '../services/ical';
 import { weightedSubjectAverage, computeGrade, toSubjectKey } from '../services/grades';
+import { requestNotificationPermissions, scheduleEventNotifications } from '../services/notifications';
 import { loadSnapshot, saveSnapshot } from '../services/storage';
 import { accentPalette, neutralPalette } from '../theme/theme';
 import {
@@ -255,6 +256,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     data.settings.accentKey,
     isReady,
   ]);
+
+  /* ── Schedule notifications when events change ──────────────── */
+  useEffect(() => {
+    if (!isReady || data.events.length === 0) return;
+
+    void (async () => {
+      const granted = await requestNotificationPermissions();
+      if (granted) {
+        await scheduleEventNotifications(data.events);
+      }
+    })();
+  }, [isReady, data.events]);
 
   const isDark =
     data.settings.themeMode === 'dark' ||

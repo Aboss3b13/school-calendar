@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Calendar } from 'react-native-calendars';
 import dayjs from 'dayjs';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,6 +21,7 @@ const ENTRY_ICON: Record<CalendarEntryType, string> = {
 export default function CalendarScreen() {
   const { t } = useTranslation();
   const { data, colors, isDark, syncCalendar, fontScaleMultiplier } = useAppContext();
+  const insets = useSafeAreaInsets();
   const [selectedDate, setSelectedDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [refreshing, setRefreshing] = useState(false);
   const [entryFilter, setEntryFilter] = useState<EntryFilter>('all');
@@ -211,7 +213,7 @@ export default function CalendarScreen() {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md, paddingBottom: insets.bottom + spacing.xl }]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
     >
       {/* ── Calendar ───────────────────────────── */}
@@ -402,8 +404,6 @@ function DetailRow({ icon, label, value, colors }: { icon: string; label: string
 const styles = StyleSheet.create({
   content: {
     padding: spacing.md,
-    paddingTop: spacing.xxl,
-    paddingBottom: spacing.xl,
     gap: spacing.sm + 4,
   },
   calendarWrap: {

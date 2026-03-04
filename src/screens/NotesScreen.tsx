@@ -14,6 +14,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import SignatureScreen from 'react-native-signature-canvas';
@@ -75,6 +76,7 @@ export default function NotesScreen() {
   const { width } = useWindowDimensions();
 
   const borderCol = isDark ? '#334155' : '#E2E8F0';
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -246,7 +248,7 @@ export default function NotesScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md, paddingBottom: insets.bottom + spacing.xl }]}>
         {/* ── Header ──────────────────────────── */}
         <View style={styles.screenHeader}>
           <Text style={[styles.pageTitle, { color: colors.text, fontSize: 24 * fontScaleMultiplier }]}>
@@ -610,8 +612,6 @@ export default function NotesScreen() {
 const styles = StyleSheet.create({
   content: {
     padding: spacing.md,
-    paddingTop: spacing.xxl,
-    paddingBottom: spacing.xl,
     gap: spacing.sm + 2,
   },
   screenHeader: {
