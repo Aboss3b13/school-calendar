@@ -12,6 +12,8 @@ import DashboardScreen from './src/screens/DashboardScreen';
 import CalendarScreen from './src/screens/CalendarScreen';
 import TasksScreen from './src/screens/TasksScreen';
 import NotesScreen from './src/screens/NotesScreen';
+import GradesScreen from './src/screens/GradesScreen';
+import WidgetsScreen from './src/screens/WidgetsScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 
 const Tab = createBottomTabNavigator();
@@ -75,7 +77,11 @@ function MainTabs() {
                     ? 'checkmark-done-outline'
                     : route.name === 'Notes'
                       ? 'document-text-outline'
-                      : 'options-outline';
+                      : route.name === 'Grades'
+                        ? 'calculator-outline'
+                        : route.name === 'Widgets'
+                          ? 'apps-outline'
+                          : 'options-outline';
             return <Ionicons name={iconName as any} size={size} color={color} />;
           },
         })}
@@ -84,6 +90,8 @@ function MainTabs() {
         <Tab.Screen name="Calendar" component={CalendarScreen} options={{ title: t('tabs.calendar') }} />
         <Tab.Screen name="Tasks" component={TasksScreen} options={{ title: t('tabs.tasks') }} />
         <Tab.Screen name="Notes" component={NotesScreen} options={{ title: t('tabs.notes') }} />
+        <Tab.Screen name="Grades" component={GradesScreen} options={{ title: t('tabs.grades') }} />
+        <Tab.Screen name="Widgets" component={WidgetsScreen} options={{ title: t('tabs.widgets') }} />
         <Tab.Screen name="Settings" component={SettingsScreen} options={{ title: t('tabs.settings') }} />
       </Tab.Navigator>
     </NavigationContainer>

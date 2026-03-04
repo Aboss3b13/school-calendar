@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { useAppContext } from '../context/AppContext';
 
 interface SectionCardProps {
   title: string;
@@ -20,19 +21,26 @@ export default function SectionCard({
   compact,
   children,
 }: SectionCardProps) {
+  const { data, fontScaleMultiplier } = useAppContext();
+  const radius = data.settings.cardStyle === 'soft' ? 24 : data.settings.cardStyle === 'glass' ? 20 : 18;
+  const computedBackground = data.settings.cardStyle === 'glass' ? `${background}DD` : background;
+
   return (
     <View
       style={[
         styles.card,
         {
-          backgroundColor: background,
+          backgroundColor: computedBackground,
           borderColor,
           padding: compact ? 12 : 16,
+          borderRadius: radius,
         },
       ]}
     >
-      <Text style={[styles.title, { color: textColor }]}>{title}</Text>
-      {subtitle ? <Text style={[styles.subtitle, { color: textColor }]}>{subtitle}</Text> : null}
+      <Text style={[styles.title, { color: textColor, fontSize: 16 * fontScaleMultiplier }]}>{title}</Text>
+      {subtitle ? (
+        <Text style={[styles.subtitle, { color: textColor, fontSize: 13 * fontScaleMultiplier }]}>{subtitle}</Text>
+      ) : null}
       {children}
     </View>
   );
@@ -41,7 +49,6 @@ export default function SectionCard({
 const styles = StyleSheet.create({
   card: {
     borderWidth: 1,
-    borderRadius: 18,
     marginBottom: 12,
     gap: 8,
   },

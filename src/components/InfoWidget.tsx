@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { useAppContext } from '../context/AppContext';
 
 interface InfoWidgetProps {
   title: string;
@@ -20,10 +21,13 @@ export default function InfoWidget({
   background,
   borderColor,
 }: InfoWidgetProps) {
+  const { data, fontScaleMultiplier } = useAppContext();
+  const radius = data.settings.cardStyle === 'soft' ? 20 : data.settings.cardStyle === 'glass' ? 18 : 14;
+
   return (
-    <View style={[styles.widget, { backgroundColor: background, borderColor }]}>
-      <Text style={[styles.value, { color: textColor }]}>{value}</Text>
-      <Text style={[styles.title, { color: subtleColor }]}>{title}</Text>
+    <View style={[styles.widget, { backgroundColor: background, borderColor, borderRadius: radius }]}>
+      <Text style={[styles.value, { color: textColor, fontSize: 24 * fontScaleMultiplier }]}>{value}</Text>
+      <Text style={[styles.title, { color: subtleColor, fontSize: 12 * fontScaleMultiplier }]}>{title}</Text>
       <View style={[styles.accentBar, { backgroundColor: accent }]} />
     </View>
   );
@@ -34,7 +38,6 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 140,
     minHeight: 94,
-    borderRadius: 14,
     borderWidth: 1,
     padding: 12,
     justifyContent: 'space-between',

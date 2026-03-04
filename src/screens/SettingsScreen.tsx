@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useAppContext } from '../context/AppContext';
-import { AccentKey, AppLanguage, ThemeMode } from '../types/models';
+import { AccentKey, AppLanguage, CardStyle, FontScale, ThemeMode } from '../types/models';
 
 const accents: AccentKey[] = ['blue', 'purple', 'emerald', 'rose', 'amber'];
 const modes: ThemeMode[] = ['system', 'light', 'dark'];
 const languages: AppLanguage[] = ['en', 'de'];
+const cardStyles: CardStyle[] = ['rounded', 'soft', 'glass'];
+const fontScales: FontScale[] = ['small', 'normal', 'large'];
 
 export default function SettingsScreen() {
   const { t } = useTranslation();
@@ -89,6 +91,62 @@ export default function SettingsScreen() {
             onValueChange={(value) => updateSettings({ compactMode: value })}
             trackColor={{ true: colors.accent }}
           />
+        </View>
+
+        <View style={styles.switchRow}>
+          <Text style={{ color: colors.text }}>{t('settings.animations')}</Text>
+          <Switch
+            value={data.settings.animationsEnabled}
+            onValueChange={(value) => updateSettings({ animationsEnabled: value })}
+            trackColor={{ true: colors.accent }}
+          />
+        </View>
+
+        <View style={styles.switchRow}>
+          <Text style={{ color: colors.text }}>{t('settings.homescreenWidgets')}</Text>
+          <Switch
+            value={data.settings.homescreenWidgets}
+            onValueChange={(value) => updateSettings({ homescreenWidgets: value })}
+            trackColor={{ true: colors.accent }}
+          />
+        </View>
+
+        <Text style={[styles.heading, { color: colors.text }]}>{t('settings.cardStyle')}</Text>
+        <View style={styles.rowWrap}>
+          {cardStyles.map((style) => (
+            <Pressable
+              key={style}
+              onPress={() => updateSettings({ cardStyle: style })}
+              style={[
+                styles.chip,
+                {
+                  borderColor: data.settings.cardStyle === style ? colors.accent : colors.border,
+                  backgroundColor: data.settings.cardStyle === style ? `${colors.accent}22` : 'transparent',
+                },
+              ]}
+            >
+              <Text style={{ color: colors.text }}>{t(`settings.${style}`)}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        <Text style={[styles.heading, { color: colors.text }]}>{t('settings.fontScale')}</Text>
+        <View style={styles.rowWrap}>
+          {fontScales.map((scale) => (
+            <Pressable
+              key={scale}
+              onPress={() => updateSettings({ fontScale: scale })}
+              style={[
+                styles.chip,
+                {
+                  borderColor: data.settings.fontScale === scale ? colors.accent : colors.border,
+                  backgroundColor: data.settings.fontScale === scale ? `${colors.accent}22` : 'transparent',
+                },
+              ]}
+            >
+              <Text style={{ color: colors.text }}>{t(`settings.${scale}`)}</Text>
+            </Pressable>
+          ))}
         </View>
       </View>
 

@@ -28,7 +28,25 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-font"
+      "expo-font",
+      [
+        "react-native-android-widget",
+        {
+          "widgets": [
+            {
+              "name": "SchoolOverview",
+              "label": "SchoolFlow Overview",
+              "description": "Upcoming exam, open tasks and average grade",
+              "minWidth": "250dp",
+              "minHeight": "120dp",
+              "targetCellWidth": 4,
+              "targetCellHeight": 2,
+              "previewImage": "./assets/icon.png",
+              "updatePeriodMillis": 1800000
+            }
+          ]
+        }
+      ]
     ]
   }
 }

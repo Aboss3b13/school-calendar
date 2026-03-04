@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { useColorScheme } from 'react-native';
+import { Platform, useColorScheme } from 'react-native';
+import { requestWidgetUpdate } from 'react-native-android-widget';
 import i18n from '../i18n';
 import { fetchCalendarEvents } from '../services/ical';
 import { loadSnapshot, saveSnapshot } from '../services/storage';
@@ -8,11 +9,14 @@ import {
   AppSettings,
   AppStateSnapshot,
   CalendarEvent,
+  GradeItem,
+  NoteChecklistItem,
   NoteItem,
   TaskItem,
   ThemeMode,
 } from '../types/models';
 import { defaultIcalUrl } from '../services/ical';
+import { renderSchoolOverviewWidget } from '../widgets/SchoolOverviewWidget';
 
 const defaultSettings: AppSettings = {
   iCalUrl: defaultIcalUrl,
@@ -20,12 +24,17 @@ const defaultSettings: AppSettings = {
   themeMode: 'system',
   accentKey: 'blue',
   compactMode: false,
+  animationsEnabled: true,
+  cardStyle: 'rounded',
+  fontScale: 'normal',
+  homescreenWidgets: true,
 };
 
 const defaultState: AppStateSnapshot = {
   events: [],
   tasks: [],
   notes: [],
+  grades: [],
   settings: defaultSettings,
 };
 
@@ -36,6 +45,25 @@ function normalizeEvent(event: CalendarEvent): CalendarEvent {
     ...event,
     entryType,
     subject,
+  };
+}
+
+function normalizeChecklist(items?: NoteChecklistItem[]): NoteChecklistItem[] {
+  return (items ?? []).map((item) => ({
+    id: item.id,
+    text: item.text,
+    done: Boolean(item.done),
+  }));
+}
+
+function normalizeNote(note: NoteItem): NoteItem {
+  return {
+    ...note,
+    notebook: note.notebook ?? 'School',
+    section: note.section ?? 'General',
+    favorite: Boolean(note.favorite),
+    color: note.color ?? '#60A5FA',
+    checklist: normalizeChecklist(note.checklist),
   };
 }
 
@@ -53,12 +81,18 @@ interface AppContextValue {
   colors: AppColors;
   isDark: boolean;
   isReady: boolean;
+  fontScaleMultiplier: number;
   syncCalendar: (urlOverride?: string) => Promise<void>;
   updateSettings: (changes: Partial<AppSettings>) => void;
   addTask: (task: Omit<TaskItem, 'id' | 'createdAt' | 'completed'>) => void;
   toggleTask: (taskId: string) => void;
   addNote: (note: Omit<NoteItem, 'id' | 'createdAt' | 'updatedAt'>) => void;
   togglePinNote: (noteId: string) => void;
+  toggleFavoriteNote: (noteId: string) => void;
+  toggleChecklistItem: (noteId: string, checklistItemId: string) => void;
+  deleteNote: (noteId: string) => void;
+  addGrade: (grade: Omit<GradeItem, 'id' | 'grade' | 'date'> & { date?: string }) => void;
+  removeGrade: (gradeId: string) => void;
 }
 
 const AppContext = createContext<AppContextValue | undefined>(undefined);
@@ -79,11 +113,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setData({
           ...snapshot,
           events: (snapshot.events ?? []).map((event) => normalizeEvent(event)),
-          notes: (snapshot.notes ?? []).map((note) => ({
-            ...note,
-            notebook: note.notebook ?? 'School',
-            section: note.section ?? 'General',
-          })),
+          notes: (snapshot.notes ?? []).map((note) => normalizeNote(note)),
+          grades: snapshot.grades ?? [],
           settings: {
             ...defaultSettings,
             ...snapshot.settings,
@@ -106,6 +137,43 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     void saveSnapshot(data);
   }, [data, isReady]);
+
+  useEffect(() => {
+    if (!isReady || Platform.OS !== 'android' || !data.settings.homescreenWidgets) {
+      return;
+    }
+
+    const now = Date.now();
+    const nextExam = data.events
+      .filter((event) => event.entryType === 'exam' && new Date(event.start).getTime() >= now)
+      .sort((left, right) => new Date(left.start).getTime() - new Date(right.start).getTime())[0];
+
+    const openTasks = data.tasks.filter((task) => !task.completed).length;
+    const avgGrade =
+      data.grades.length > 0
+        ? data.grades.reduce((sum, item) => sum + item.grade * item.weight, 0) /
+          data.grades.reduce((sum, item) => sum + item.weight, 0)
+        : null;
+
+    void requestWidgetUpdate({
+      widgetName: 'SchoolOverview',
+      renderWidget: () =>
+        renderSchoolOverviewWidget({
+          title: 'SchoolFlow',
+          subtitle: nextExam ? nextExam.title : 'No upcoming exam',
+          openTasks,
+          averageGrade: avgGrade,
+          accent: accentPalette[data.settings.accentKey],
+        }),
+    }).catch(() => undefined);
+  }, [
+    data.events,
+    data.tasks,
+    data.grades,
+    data.settings.homescreenWidgets,
+    data.settings.accentKey,
+    isReady,
+  ]);
 
   const isDark =
     data.settings.themeMode === 'dark' ||
@@ -190,14 +258,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setData((prev) => ({
       ...prev,
       notes: [
-        {
+        normalizeNote({
           ...note,
-          notebook: note.notebook ?? 'School',
-          section: note.section ?? 'General',
           id: createId('note'),
           createdAt: timestamp,
           updatedAt: timestamp,
-        },
+        }),
         ...prev.notes,
       ],
     }));
@@ -220,6 +286,81 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }));
   };
 
+  const toggleFavoriteNote: AppContextValue['toggleFavoriteNote'] = (noteId) => {
+    setData((prev) => ({
+      ...prev,
+      notes: prev.notes.map((note) =>
+        note.id === noteId
+          ? {
+              ...note,
+              favorite: !note.favorite,
+              updatedAt: new Date().toISOString(),
+            }
+          : note,
+      ),
+    }));
+  };
+
+  const toggleChecklistItem: AppContextValue['toggleChecklistItem'] = (noteId, checklistItemId) => {
+    setData((prev) => ({
+      ...prev,
+      notes: prev.notes.map((note) =>
+        note.id === noteId
+          ? {
+              ...note,
+              checklist: (note.checklist ?? []).map((item) =>
+                item.id === checklistItemId
+                  ? {
+                      ...item,
+                      done: !item.done,
+                    }
+                  : item,
+              ),
+              updatedAt: new Date().toISOString(),
+            }
+          : note,
+      ),
+    }));
+  };
+
+  const deleteNote: AppContextValue['deleteNote'] = (noteId) => {
+    setData((prev) => ({
+      ...prev,
+      notes: prev.notes.filter((note) => note.id !== noteId),
+    }));
+  };
+
+  const addGrade: AppContextValue['addGrade'] = (gradeInput) => {
+    const points = Math.max(0, gradeInput.points);
+    const maxPoints = Math.max(1, gradeInput.maxPoints);
+    const grade = Math.min(6, Math.max(1, 1 + (5 * points) / maxPoints));
+
+    setData((prev) => ({
+      ...prev,
+      grades: [
+        {
+          ...gradeInput,
+          points,
+          maxPoints,
+          grade,
+          id: createId('grade'),
+          date: gradeInput.date ?? new Date().toISOString(),
+        },
+        ...prev.grades,
+      ],
+    }));
+  };
+
+  const removeGrade: AppContextValue['removeGrade'] = (gradeId) => {
+    setData((prev) => ({
+      ...prev,
+      grades: prev.grades.filter((grade) => grade.id !== gradeId),
+    }));
+  };
+
+  const fontScaleMultiplier =
+    data.settings.fontScale === 'small' ? 0.92 : data.settings.fontScale === 'large' ? 1.1 : 1;
+
   return (
     <AppContext.Provider
       value={{
@@ -227,12 +368,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         colors,
         isDark,
         isReady,
+        fontScaleMultiplier,
         syncCalendar,
         updateSettings,
         addTask,
         toggleTask,
         addNote,
         togglePinNote,
+        toggleFavoriteNote,
+        toggleChecklistItem,
+        deleteNote,
+        addGrade,
+        removeGrade,
       }}
     >
       {children}

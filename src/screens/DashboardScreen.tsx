@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -11,6 +11,25 @@ export default function DashboardScreen() {
   const { t } = useTranslation();
   const { data, colors, syncCalendar } = useAppContext();
   const [isSyncing, setIsSyncing] = useState(false);
+  const { width } = useWindowDimensions();
+  const pulseValue = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!data.settings.animationsEnabled) {
+      pulseValue.setValue(0);
+      return;
+    }
+
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseValue, { toValue: 1, duration: 1300, useNativeDriver: true }),
+        Animated.timing(pulseValue, { toValue: 0, duration: 1300, useNativeDriver: true }),
+      ]),
+    );
+
+    animation.start();
+    return () => animation.stop();
+  }, [data.settings.animationsEnabled, pulseValue]);
 
   const nextEvent = useMemo(() => {
     const now = Date.now();
@@ -28,6 +47,18 @@ export default function DashboardScreen() {
   }, [data.events]);
 
   const openTasks = data.tasks.filter((task) => !task.completed).length;
+  const isTablet = width >= 860;
+
+  const averageGrade = useMemo(() => {
+    if (data.grades.length === 0) {
+      return null;
+    }
+    const totalWeight = data.grades.reduce((sum, item) => sum + item.weight, 0);
+    if (totalWeight <= 0) {
+      return null;
+    }
+    return data.grades.reduce((sum, item) => sum + item.grade * item.weight, 0) / totalWeight;
+  }, [data.grades]);
 
   async function onSync() {
     setIsSyncing(true);
@@ -40,15 +71,28 @@ export default function DashboardScreen() {
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={styles.content}>
-      <LinearGradient
-        colors={[colors.accent, '#6366F1']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.hero}
+      <Animated.View
+        style={{
+          transform: [
+            {
+              scale: pulseValue.interpolate({
+                inputRange: [0, 1],
+                outputRange: [1, 1.02],
+              }),
+            },
+          ],
+        }}
       >
-        <Text style={styles.heroTitle}>{t('dashboard.title')}</Text>
-        <Text style={styles.heroText}>{t('dashboard.welcome')}</Text>
-      </LinearGradient>
+        <LinearGradient
+          colors={[colors.accent, '#6366F1']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.hero}
+        >
+          <Text style={styles.heroTitle}>{t('dashboard.title')}</Text>
+          <Text style={styles.heroText}>{t('dashboard.welcome')}</Text>
+        </LinearGradient>
+      </Animated.View>
 
       <Pressable onPress={onSync} style={[styles.syncButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Text style={{ color: colors.text, fontWeight: '700' }}>
@@ -67,7 +111,7 @@ export default function DashboardScreen() {
         <Text style={{ color: colors.subtle }}>{nextEvent?.title ?? '—'}</Text>
       </SectionCard>
 
-      <View style={styles.statsRow}>
+      <View style={[styles.statsRow, isTablet ? styles.statsRowTablet : undefined]}>
         <InfoWidget
           title={t('dashboard.upcomingExams')}
           value={examCount}
@@ -98,6 +142,15 @@ export default function DashboardScreen() {
         <InfoWidget
           title={t('calendar.lessons')}
           value={lessonCount}
+          accent={colors.accent}
+          textColor={colors.text}
+          subtleColor={colors.subtle}
+          background={colors.card}
+          borderColor={colors.border}
+        />
+        <InfoWidget
+          title={t('grades.averageSwiss')}
+          value={averageGrade ? averageGrade.toFixed(2) : '-'}
           accent={colors.accent}
           textColor={colors.text}
           subtleColor={colors.subtle}
@@ -143,5 +196,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+  },
+  statsRowTablet: {
+    gap: 12,
   },
 });

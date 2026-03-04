@@ -8,13 +8,22 @@ An all-in-one school organizer app for phone + tablet with iCal sync, exam track
 - **Automatic exam detection** from event titles/descriptions
 - **Dashboard command center** with next class, upcoming exams, open tasks, notes count
 - **Monthly calendar view** with marked school events
+- **Advanced calendar sorting** by event type (lesson/event/exam), subject, and date
+- **Upcoming exams first** with expandable past-exam history
 - **Task manager** with priorities, due dates, subjects, completion states
-- **Professional notes system**
+- **Professional OneNote-style notes system**
   - Typed notes
   - Stylus handwriting capture (great for Lenovo Yoga Tab Plus pen usage)
-  - Tags, pinning, and quick organization
+  - Notebooks + sections + templates
+  - Tags, favorites, pinning, checklist items, color coding, fast filtering
+- **Swiss grade calculator**
+  - Weighted average grade (1–6 scale)
+  - Points-to-grade conversion and target-grade point calculator
+- **Android home-screen widget support**
+  - SchoolFlow overview widget (next exam, open tasks, average grade)
+  - In-app widget preview and live sync toggle
 - **Fully bilingual**: English + German switch at runtime
-- **Customization**: dark/light/system mode, accent colors, compact UI mode, editable iCal URL
+- **Customization**: dark/light/system mode, accent colors, compact mode, card styles, font scale, animation toggle, widget sync toggle, editable iCal URL
 - **Offline-first local persistence** using AsyncStorage
 
 ## Included iCal default
@@ -95,6 +104,7 @@ git push -u origin main
 - i18next + react-i18next + expo-localization
 - react-native-calendars
 - react-native-signature-canvas + react-native-webview
+- react-native-android-widget
 - AsyncStorage
 - iCal parsing with `ical.js`
 
