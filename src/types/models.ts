@@ -8,6 +8,8 @@ export type TaskPriority = 'low' | 'medium' | 'high';
 
 export type NoteType = 'typed' | 'ink' | 'mixed';
 
+export type CalendarEntryType = 'lesson' | 'exam' | 'event';
+
 export interface CalendarEvent {
   id: string;
   title: string;
@@ -17,6 +19,8 @@ export interface CalendarEvent {
   end: string;
   allDay: boolean;
   isExam: boolean;
+  entryType: CalendarEntryType;
+  subject?: string;
 }
 
 export interface TaskItem {
@@ -38,6 +42,8 @@ export interface NoteItem {
   tags: string[];
   pinned: boolean;
   type: NoteType;
+  notebook?: string;
+  section?: string;
   createdAt: string;
   updatedAt: string;
 }

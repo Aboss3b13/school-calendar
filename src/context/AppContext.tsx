@@ -29,6 +29,16 @@ const defaultState: AppStateSnapshot = {
   settings: defaultSettings,
 };
 
+function normalizeEvent(event: CalendarEvent): CalendarEvent {
+  const subject = event.subject;
+  const entryType = event.entryType ?? (event.isExam ? 'exam' : subject ? 'lesson' : 'event');
+  return {
+    ...event,
+    entryType,
+    subject,
+  };
+}
+
 interface AppColors {
   background: string;
   card: string;
@@ -68,6 +78,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (snapshot) {
         setData({
           ...snapshot,
+          events: (snapshot.events ?? []).map((event) => normalizeEvent(event)),
+          notes: (snapshot.notes ?? []).map((note) => ({
+            ...note,
+            notebook: note.notebook ?? 'School',
+            section: note.section ?? 'General',
+          })),
           settings: {
             ...defaultSettings,
             ...snapshot.settings,
@@ -109,7 +125,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const syncCalendar = async (urlOverride?: string) => {
     const url = (urlOverride ?? data.settings.iCalUrl).trim();
-    const events = await fetchCalendarEvents(url);
+    const events = (await fetchCalendarEvents(url)).map((event) => normalizeEvent(event));
 
     setData((prev) => ({
       ...prev,
@@ -176,6 +192,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       notes: [
         {
           ...note,
+          notebook: note.notebook ?? 'School',
+          section: note.section ?? 'General',
           id: createId('note'),
           createdAt: timestamp,
           updatedAt: timestamp,

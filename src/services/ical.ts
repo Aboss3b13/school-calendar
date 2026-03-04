@@ -19,6 +19,18 @@ function looksLikeExam(text: string): boolean {
   return examKeywords.some((key) => lower.includes(key));
 }
 
+function extractSubject(text: string): string | undefined {
+  const subjectPattern = /\b([a-z]{2,4})_[a-z0-9]+\b/i;
+  const simplePattern = /\b([a-z]{2,4})\d{0,2}_[a-z0-9]+\b/i;
+
+  const subjectMatch = text.match(subjectPattern) ?? text.match(simplePattern);
+  if (subjectMatch?.[1]) {
+    return subjectMatch[1].toUpperCase();
+  }
+
+  return undefined;
+}
+
 export function parseIcsToEvents(icsText: string): CalendarEvent[] {
   const parsed = ICAL.parse(icsText);
   const comp = new ICAL.Component(parsed);
@@ -38,6 +50,8 @@ export function parseIcsToEvents(icsText: string): CalendarEvent[] {
       }
 
       const isExam = looksLikeExam(`${title} ${description}`);
+      const subject = extractSubject(`${title} ${description}`);
+      const entryType = isExam ? 'exam' : subject ? 'lesson' : 'event';
 
       return {
         id: String(event.uid ?? `${title}-${startDate.toISOString()}`),
@@ -48,6 +62,8 @@ export function parseIcsToEvents(icsText: string): CalendarEvent[] {
         end: endDate.toISOString(),
         allDay: Boolean(event.startDate?.isDate),
         isExam,
+        entryType,
+        subject,
       } satisfies CalendarEvent;
     })
     .filter((event: CalendarEvent | null): event is CalendarEvent => Boolean(event));

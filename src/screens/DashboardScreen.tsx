@@ -5,6 +5,7 @@ import dayjs from 'dayjs';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppContext } from '../context/AppContext';
 import SectionCard from '../components/SectionCard';
+import InfoWidget from '../components/InfoWidget';
 
 export default function DashboardScreen() {
   const { t } = useTranslation();
@@ -19,6 +20,11 @@ export default function DashboardScreen() {
   const examCount = useMemo(() => {
     const now = Date.now();
     return data.events.filter((event) => event.isExam && new Date(event.start).getTime() >= now).length;
+  }, [data.events]);
+
+  const lessonCount = useMemo(() => {
+    const now = Date.now();
+    return data.events.filter((event) => event.entryType === 'lesson' && new Date(event.start).getTime() >= now).length;
   }, [data.events]);
 
   const openTasks = data.tasks.filter((task) => !task.completed).length;
@@ -62,18 +68,42 @@ export default function DashboardScreen() {
       </SectionCard>
 
       <View style={styles.statsRow}>
-        <View style={[styles.statTile, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.statValue, { color: colors.text }]}>{examCount}</Text>
-          <Text style={{ color: colors.subtle }}>{t('dashboard.upcomingExams')}</Text>
-        </View>
-        <View style={[styles.statTile, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.statValue, { color: colors.text }]}>{openTasks}</Text>
-          <Text style={{ color: colors.subtle }}>{t('dashboard.openTasks')}</Text>
-        </View>
-        <View style={[styles.statTile, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.statValue, { color: colors.text }]}>{data.notes.length}</Text>
-          <Text style={{ color: colors.subtle }}>{t('dashboard.notesCount')}</Text>
-        </View>
+        <InfoWidget
+          title={t('dashboard.upcomingExams')}
+          value={examCount}
+          accent={colors.accent}
+          textColor={colors.text}
+          subtleColor={colors.subtle}
+          background={colors.card}
+          borderColor={colors.border}
+        />
+        <InfoWidget
+          title={t('dashboard.openTasks')}
+          value={openTasks}
+          accent={colors.accent}
+          textColor={colors.text}
+          subtleColor={colors.subtle}
+          background={colors.card}
+          borderColor={colors.border}
+        />
+        <InfoWidget
+          title={t('dashboard.notesCount')}
+          value={data.notes.length}
+          accent={colors.accent}
+          textColor={colors.text}
+          subtleColor={colors.subtle}
+          background={colors.card}
+          borderColor={colors.border}
+        />
+        <InfoWidget
+          title={t('calendar.lessons')}
+          value={lessonCount}
+          accent={colors.accent}
+          textColor={colors.text}
+          subtleColor={colors.subtle}
+          background={colors.card}
+          borderColor={colors.border}
+        />
       </View>
 
       <Text style={{ color: colors.subtle, marginTop: 8 }}>
@@ -111,18 +141,7 @@ const styles = StyleSheet.create({
   },
   statsRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
-  },
-  statTile: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 12,
-    minHeight: 92,
-    justifyContent: 'space-between',
-  },
-  statValue: {
-    fontSize: 26,
-    fontWeight: '800',
   },
 });
