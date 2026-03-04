@@ -22,6 +22,7 @@ import {
   renderCalendarWidget,
   renderNextTestWidget,
   renderQuickGradeWidget,
+  renderUpcomingLessonsWidget,
 } from '../widgets';
 
 const defaultSettings: AppSettings = {
@@ -78,7 +79,6 @@ function normalizeGrade(grade: GradeItem): GradeItem {
   return {
     ...grade,
     subject: toSubjectKey(grade.subject),
-    track: grade.track === 'playground' ? 'playground' : 'official',
   };
 }
 
@@ -101,6 +101,7 @@ interface AppContextValue {
   updateSettings: (changes: Partial<AppSettings>) => void;
   addTask: (task: Omit<TaskItem, 'id' | 'createdAt' | 'completed'>) => void;
   toggleTask: (taskId: string) => void;
+  deleteTask: (taskId: string) => void;
   addNote: (note: Omit<NoteItem, 'id' | 'createdAt' | 'updatedAt'>) => void;
   togglePinNote: (noteId: string) => void;
   toggleFavoriteNote: (noteId: string) => void;
@@ -171,8 +172,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       .sort((left, right) => new Date(left.start).getTime() - new Date(right.start).getTime())[0];
 
     const openTasks = data.tasks.filter((task) => !task.completed).length;
-    const officialGrades = data.grades.filter((grade) => grade.track === 'official');
-    const avgGrade = weightedSubjectAverage(officialGrades, data.gradeSubjectWeights);
+    const avgResult = weightedSubjectAverage(data.grades, data.gradeSubjectWeights);
+    const avgGrade = avgResult ? avgResult.rounded : null;
 
     void Promise.all([
       requestWidgetUpdate({
@@ -219,11 +220,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         widgetName: 'QuickGradeWidget',
         renderWidget: () =>
           renderQuickGradeWidget({
-            title: 'Official Avg',
+            title: 'Grade Avg',
             average: avgGrade,
             openTasks,
             accent: accentPalette[data.settings.accentKey],
           }),
+      }),
+      requestWidgetUpdate({
+        widgetName: 'UpcomingLessons',
+        renderWidget: () => {
+          const lessons = data.events
+            .filter((ev) => ev.entryType === 'lesson' && new Date(ev.start).getTime() >= now)
+            .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
+            .slice(0, 3)
+            .map((ev) => ({
+              title: ev.title,
+              time: new Date(ev.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              subject: ev.subject,
+            }));
+          return renderUpcomingLessonsWidget({
+            title: 'Next Lessons',
+            lessons,
+            accent: accentPalette[data.settings.accentKey],
+          });
+        },
       }),
     ]).catch(() => undefined);
   }, [
@@ -314,6 +334,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }));
   };
 
+  const deleteTask: AppContextValue['deleteTask'] = (taskId) => {
+    setData((prev) => ({
+      ...prev,
+      tasks: prev.tasks.filter((task) => task.id !== taskId),
+    }));
+  };
+
   const addNote: AppContextValue['addNote'] = (note) => {
     const timestamp = new Date().toISOString();
     setData((prev) => ({
@@ -396,7 +423,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const maxPoints = Math.max(1, gradeInput.maxPoints);
     const grade = computeGrade(points, maxPoints);
     const subject = toSubjectKey(gradeInput.subject);
-    const track = gradeInput.track === 'playground' ? 'playground' : 'official';
 
     setData((prev) => ({
       ...prev,
@@ -408,7 +434,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         {
           ...gradeInput,
           subject,
-          track,
           points,
           maxPoints,
           grade,
@@ -455,6 +480,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         updateSettings,
         addTask,
         toggleTask,
+        deleteTask,
         addNote,
         togglePinNote,
         toggleFavoriteNote,

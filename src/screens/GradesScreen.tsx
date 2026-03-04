@@ -18,12 +18,13 @@ import InfoWidget from '../components/InfoWidget';
 import {
   computeGrade,
   pointsPercent,
+  roundToHalf,
   subjectAverages,
   toSubjectKey,
   weightedAverage,
   weightedSubjectAverage,
 } from '../services/grades';
-import { GradeItem, GradeTrack } from '../types/models';
+import { GradeItem } from '../types/models';
 import { gradeColor, shadows, spacing, radii } from '../theme/theme';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -45,8 +46,8 @@ export default function GradesScreen() {
   const [weight, setWeight] = useState('1');
   const [note, setNote] = useState('');
   const [targetGrade, setTargetGrade] = useState('5.0');
-  const [track, setTrack] = useState<GradeTrack>('official');
   const [formOpen, setFormOpen] = useState(false);
+  const [expandedSubject, setExpandedSubject] = useState<string | null>(null);
 
   const borderCol = isDark ? '#334155' : '#E2E8F0';
 
@@ -61,30 +62,15 @@ export default function GradesScreen() {
     return clamp(computeGrade(p, m), 1, 6);
   }, [points, maxPoints]);
 
-  const officialGrades = useMemo(() => data.grades.filter((e) => e.track === 'official'), [data.grades]);
-  const playgroundGrades = useMemo(() => data.grades.filter((e) => e.track === 'playground'), [data.grades]);
-
-  const officialWeighted = useMemo(() => weightedAverage(officialGrades), [officialGrades]);
-  const officialSubjectWeighted = useMemo(
-    () => weightedSubjectAverage(officialGrades, data.gradeSubjectWeights),
-    [officialGrades, data.gradeSubjectWeights],
-  );
-  const officialPointsRate = useMemo(() => pointsPercent(officialGrades), [officialGrades]);
-
-  const playgroundWeighted = useMemo(() => weightedAverage(playgroundGrades), [playgroundGrades]);
-  const playgroundSubjectWeighted = useMemo(
-    () => weightedSubjectAverage(playgroundGrades, data.gradeSubjectWeights),
-    [playgroundGrades, data.gradeSubjectWeights],
-  );
-  const playgroundPointsRate = useMemo(() => pointsPercent(playgroundGrades), [playgroundGrades]);
-
-  const allSubjectsWeighted = useMemo(
+  /* ── Summary data  ──────────────────────── */
+  const overallAvg = useMemo(
     () => weightedSubjectAverage(data.grades, data.gradeSubjectWeights),
     [data.grades, data.gradeSubjectWeights],
   );
 
-  const officialSubjectRows = useMemo(() => subjectAverages(officialGrades), [officialGrades]);
-  const playgroundSubjectRows = useMemo(() => subjectAverages(playgroundGrades), [playgroundGrades]);
+  const subjectRows = useMemo(() => subjectAverages(data.grades), [data.grades]);
+  const overallPointsPct = useMemo(() => pointsPercent(data.grades), [data.grades]);
+  const simpleAvg = useMemo(() => weightedAverage(data.grades), [data.grades]);
 
   const requiredPoints = useMemo(() => {
     const tgt = clamp(Number(targetGrade) || 1, 1, 6);
@@ -96,6 +82,17 @@ export default function GradesScreen() {
     return Array.from(new Set(data.grades.map((g) => toSubjectKey(g.subject)))).sort();
   }, [data.grades]);
 
+  const gradesBySubject = useMemo(() => {
+    const map = new Map<string, GradeItem[]>();
+    data.grades.forEach((g) => {
+      const key = toSubjectKey(g.subject);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(g);
+    });
+    map.forEach((list) => list.sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf()));
+    return map;
+  }, [data.grades]);
+
   function onSaveGrade() {
     const p = Number(points);
     const m = Number(maxPoints);
@@ -104,7 +101,6 @@ export default function GradesScreen() {
     addGrade({
       title: title.trim(),
       subject: subject.trim().toUpperCase(),
-      track,
       points: p,
       maxPoints: Math.max(1, m),
       weight: Number.isNaN(w) ? 1 : Math.max(0.25, w),
@@ -112,129 +108,6 @@ export default function GradesScreen() {
     });
     setNote('');
     setPoints('');
-  }
-
-  /* ── Chip ────────────────────────────────── */
-  function Chip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
-    return (
-      <Pressable
-        onPress={onPress}
-        style={[
-          styles.chip,
-          { backgroundColor: active ? `${colors.accent}18` : 'transparent', borderColor: active ? colors.accent : borderCol },
-        ]}
-      >
-        <Text style={{ color: active ? colors.accent : colors.text, fontWeight: active ? '800' : '600', fontSize: 13 }}>{label}</Text>
-      </Pressable>
-    );
-  }
-
-  /* ── Grade result card ───────────────────── */
-  function renderResultRows(titleKey: string, entries: GradeItem[]) {
-    const sorted = [...entries].sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf());
-    return (
-      <View style={styles.sectionBlock}>
-        <Text style={[styles.sectionTitle, { color: colors.text, fontSize: 17 * fontScaleMultiplier }]}>{t(titleKey)}</Text>
-        {sorted.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Ionicons name="school-outline" size={28} color={colors.subtle} />
-            <Text style={{ color: colors.subtle, marginTop: 6, fontWeight: '600' }}>{t('grades.noResults')}</Text>
-          </View>
-        ) : (
-          sorted.map((entry) => (
-            <View
-              key={entry.id}
-              style={[
-                styles.resultCard,
-                shadows.sm,
-                { backgroundColor: colors.card, borderLeftColor: gradeColor(entry.grade) },
-              ]}
-            >
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: colors.text, fontWeight: '800', fontSize: 14 }}>{entry.subject} · {entry.title}</Text>
-                <View style={[styles.metaRow, { marginTop: 3 }]}>
-                  <Text style={{ color: colors.subtle, fontSize: 12 }}>{entry.points}/{entry.maxPoints}</Text>
-                  <View style={styles.dotSep} />
-                  <Text style={{ color: colors.subtle, fontSize: 12 }}>w:{entry.weight}</Text>
-                  <View style={styles.dotSep} />
-                  <Text style={{ color: colors.subtle, fontSize: 12 }}>{dayjs(entry.date).format('DD.MM.YY')}</Text>
-                </View>
-              </View>
-              <Text style={{ color: gradeColor(entry.grade), fontWeight: '900', fontSize: 20 }}>{entry.grade.toFixed(2)}</Text>
-              <Pressable onPress={() => { animate(); removeGrade(entry.id); }} style={({ pressed }) => [styles.deleteCircle, { opacity: pressed ? 0.6 : 1 }]}>
-                <Ionicons name="trash-outline" size={16} color="#EF4444" />
-              </Pressable>
-            </View>
-          ))
-        )}
-      </View>
-    );
-  }
-
-  /* ── Subject row ─────────────────────────── */
-  function renderSubjectRows(rows: ReturnType<typeof subjectAverages>) {
-    if (rows.length === 0) return <Text style={{ color: colors.subtle, fontSize: 13 }}>{t('grades.noResults')}</Text>;
-    return (
-      <View style={{ gap: spacing.sm }}>
-        {rows.map((row) => {
-          const cw = data.gradeSubjectWeights[row.subject] ?? 1;
-          return (
-            <View key={row.subject} style={[styles.subjectRow, shadows.sm, { backgroundColor: colors.card }]}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: colors.text, fontWeight: '800', fontSize: 14 }}>{row.subject}</Text>
-                <Text style={{ color: colors.subtle, fontSize: 12 }}>{t('grades.avg')}: {row.average.toFixed(2)} · n={row.entries}</Text>
-              </View>
-              {/* progress bar */}
-              <View style={[styles.miniBar, { backgroundColor: isDark ? '#1E293B' : '#E2E8F0' }]}>
-                <View style={{ width: `${clamp((row.average / 6) * 100, 0, 100)}%`, height: '100%', borderRadius: 3, backgroundColor: gradeColor(row.average) }} />
-              </View>
-              <View style={styles.weightControl}>
-                <Pressable onPress={() => { animate(); setGradeSubjectWeight(row.subject, Math.max(0.1, cw - 0.25)); }} style={[styles.weightBtn, { borderColor: borderCol }]}>
-                  <Ionicons name="remove" size={14} color={colors.text} />
-                </Pressable>
-                <Text style={{ color: colors.text, minWidth: 36, textAlign: 'center', fontWeight: '700', fontSize: 13 }}>{cw.toFixed(2)}</Text>
-                <Pressable onPress={() => { animate(); setGradeSubjectWeight(row.subject, cw + 0.25); }} style={[styles.weightBtn, { borderColor: borderCol }]}>
-                  <Ionicons name="add" size={14} color={colors.text} />
-                </Pressable>
-              </View>
-            </View>
-          );
-        })}
-      </View>
-    );
-  }
-
-  /* ── Track summary card ──────────────────── */
-  function TrackSummary({ label, avg, subjectAvg, pts, subjectRows: sRows }: { label: string; avg: number | null; subjectAvg: number | null; pts: number | null; subjectRows: ReturnType<typeof subjectAverages> }) {
-    return (
-      <View style={styles.sectionBlock}>
-        <Text style={[styles.sectionTitle, { color: colors.text, fontSize: 17 * fontScaleMultiplier }]}>{label}</Text>
-        <View style={styles.widgetsRow}>
-          <InfoWidget
-            title={t('grades.averageSwiss')}
-            value={avg ? avg.toFixed(2) : '-'}
-            accent={colors.accent}
-            textColor={colors.text}
-            subtleColor={colors.subtle}
-            background={colors.card}
-            borderColor={colors.border}
-          />
-          <InfoWidget
-            title={t('grades.allSubjectsWeighted')}
-            value={subjectAvg ? subjectAvg.toFixed(2) : '-'}
-            accent={colors.accent}
-            textColor={colors.text}
-            subtleColor={colors.subtle}
-            background={colors.card}
-            borderColor={colors.border}
-          />
-        </View>
-        <Text style={{ color: colors.subtle, fontSize: 13, marginLeft: 2 }}>
-          {t('grades.pointsRate')}: {pts ? `${pts.toFixed(1)}%` : '-'}
-        </Text>
-        {renderSubjectRows(sRows)}
-      </View>
-    );
   }
 
   return (
@@ -251,11 +124,31 @@ export default function GradesScreen() {
           </Pressable>
         </View>
 
-        {/* ── Top widgets ────────────────── */}
+        {/* ── Top Summary Widgets ────────── */}
         <View style={styles.widgetsRow}>
           <InfoWidget
-            title={t('grades.allSubjectsWeighted')}
-            value={allSubjectsWeighted ? allSubjectsWeighted.toFixed(2) : '-'}
+            title={t('grades.roundedAvg')}
+            value={overallAvg ? overallAvg.rounded.toFixed(2) : '-'}
+            accent={colors.accent}
+            textColor={colors.text}
+            subtleColor={colors.subtle}
+            background={colors.card}
+            borderColor={colors.border}
+          />
+          <InfoWidget
+            title={t('grades.unroundedAvg')}
+            value={overallAvg ? overallAvg.unrounded.toFixed(2) : '-'}
+            accent={colors.accent}
+            textColor={colors.text}
+            subtleColor={colors.subtle}
+            background={colors.card}
+            borderColor={colors.border}
+          />
+        </View>
+        <View style={styles.widgetsRow}>
+          <InfoWidget
+            title={t('grades.pointsRate')}
+            value={overallPointsPct ? `${overallPointsPct.toFixed(1)}%` : '-'}
             accent={colors.accent}
             textColor={colors.text}
             subtleColor={colors.subtle}
@@ -278,11 +171,6 @@ export default function GradesScreen() {
           <View style={[styles.formCard, shadows.md, { backgroundColor: colors.card }]}>
             <Text style={[styles.formHeading, { color: colors.text }]}>{t('grades.addResult')}</Text>
 
-            <View style={styles.segmentRow}>
-              <Chip label={t('grades.official')} active={track === 'official'} onPress={() => setTrack('official')} />
-              <Chip label={t('grades.playground')} active={track === 'playground'} onPress={() => setTrack('playground')} />
-            </View>
-
             <View style={styles.row}>
               <TextInput value={title} onChangeText={setTitle} placeholder={t('grades.examTitle')} placeholderTextColor={colors.subtle} style={[styles.input, styles.flex1, { borderColor: borderCol, color: colors.text }]} />
               <TextInput value={subject} onChangeText={setSubject} placeholder={t('grades.subject')} placeholderTextColor={colors.subtle} style={[styles.input, styles.flex1, { borderColor: borderCol, color: colors.text }]} />
@@ -300,6 +188,9 @@ export default function GradesScreen() {
             <View style={[styles.previewBadge, shadows.sm, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC' }]}>
               <View>
                 <Text style={{ color: colors.subtle, fontWeight: '700', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.4 }}>{t('grades.previewSwiss')}</Text>
+                <Text style={{ color: colors.subtle, fontSize: 11 }}>
+                  {t('grades.roundedLabel')}: {roundToHalf(currentGradePreview).toFixed(1)}
+                </Text>
               </View>
               <Text style={{ color: gradeColor(currentGradePreview), fontWeight: '900', fontSize: 24 }}>{currentGradePreview.toFixed(2)}</Text>
             </View>
@@ -329,43 +220,96 @@ export default function GradesScreen() {
           </Text>
         </View>
 
-        {/* ── Subject Weights ────────────── */}
+        {/* ── Subjects with expandable grades ── */}
         <View style={styles.sectionBlock}>
-          <Text style={[styles.sectionTitle, { color: colors.text, fontSize: 17 * fontScaleMultiplier }]}>{t('grades.subjectWeights')}</Text>
-          <Text style={{ color: colors.subtle, fontSize: 13 }}>{t('grades.subjectWeightHint')}</Text>
-
-          {knownSubjects.length === 0 ? (
-            <Text style={{ color: colors.subtle, fontSize: 13 }}>{t('grades.noResults')}</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text, fontSize: 18 * fontScaleMultiplier }]}>{t('grades.subjectOverview')}</Text>
+          {subjectRows.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="school-outline" size={28} color={colors.subtle} />
+              <Text style={{ color: colors.subtle, marginTop: 6, fontWeight: '600' }}>{t('grades.noResults')}</Text>
+            </View>
           ) : (
-            <View style={{ gap: spacing.sm }}>
-              {knownSubjects.map((subjectCode) => {
-                const cw = data.gradeSubjectWeights[subjectCode] ?? 1;
-                return (
-                  <View key={subjectCode} style={[styles.subjectRow, shadows.sm, { backgroundColor: colors.card }]}>
-                    <Text style={{ color: colors.text, fontWeight: '800', flex: 1, fontSize: 14 }}>{subjectCode}</Text>
+            subjectRows.map((row) => {
+              const cw = data.gradeSubjectWeights[row.subject] ?? 1;
+              const isExpanded = expandedSubject === row.subject;
+              const entries = gradesBySubject.get(row.subject) ?? [];
+              return (
+                <View key={row.subject}>
+                  <Pressable
+                    onPress={() => { animate(); setExpandedSubject(isExpanded ? null : row.subject); }}
+                    style={({ pressed }) => [
+                      styles.subjectCard,
+                      shadows.sm,
+                      {
+                        backgroundColor: colors.card,
+                        borderLeftColor: gradeColor(row.average),
+                        opacity: pressed ? 0.92 : 1,
+                      },
+                    ]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: colors.text, fontWeight: '900', fontSize: 15 }}>{row.subject}</Text>
+                      <View style={[styles.metaRow, { marginTop: 3 }]}>
+                        <Text style={{ color: colors.subtle, fontSize: 12 }}>
+                          {t('grades.avg')}: {row.average.toFixed(2)}
+                        </Text>
+                        <View style={styles.dotSep} />
+                        <Text style={{ color: gradeColor(row.roundedAverage), fontSize: 12, fontWeight: '700' }}>
+                          ≈ {row.roundedAverage.toFixed(1)}
+                        </Text>
+                        <View style={styles.dotSep} />
+                        <Text style={{ color: colors.subtle, fontSize: 12 }}>n={row.entries}</Text>
+                      </View>
+                    </View>
+                    {/* progress bar */}
+                    <View style={[styles.miniBar, { backgroundColor: isDark ? '#1E293B' : '#E2E8F0' }]}>
+                      <View style={{ width: `${clamp((row.average / 6) * 100, 0, 100)}%`, height: '100%', borderRadius: 3, backgroundColor: gradeColor(row.average) }} />
+                    </View>
+                    {/* subject weight control */}
                     <View style={styles.weightControl}>
-                      <Pressable onPress={() => { animate(); setGradeSubjectWeight(subjectCode, Math.max(0.1, cw - 0.25)); }} style={[styles.weightBtn, { borderColor: borderCol }]}>
+                      <Pressable onPress={(e) => { e.stopPropagation?.(); animate(); setGradeSubjectWeight(row.subject, Math.max(0.1, cw - 0.25)); }} style={[styles.weightBtn, { borderColor: borderCol }]}>
                         <Ionicons name="remove" size={14} color={colors.text} />
                       </Pressable>
-                      <Text style={{ color: colors.text, minWidth: 36, textAlign: 'center', fontWeight: '700', fontSize: 13 }}>{cw.toFixed(2)}</Text>
-                      <Pressable onPress={() => { animate(); setGradeSubjectWeight(subjectCode, cw + 0.25); }} style={[styles.weightBtn, { borderColor: borderCol }]}>
+                      <Text style={{ color: colors.text, minWidth: 28, textAlign: 'center', fontWeight: '700', fontSize: 12 }}>{cw.toFixed(1)}</Text>
+                      <Pressable onPress={(e) => { e.stopPropagation?.(); animate(); setGradeSubjectWeight(row.subject, cw + 0.25); }} style={[styles.weightBtn, { borderColor: borderCol }]}>
                         <Ionicons name="add" size={14} color={colors.text} />
                       </Pressable>
                     </View>
-                  </View>
-                );
-              })}
-            </View>
+                    <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={colors.subtle} />
+                  </Pressable>
+
+                  {/* Expanded grade entries */}
+                  {isExpanded && (
+                    <View style={styles.expandedGrades}>
+                      {entries.map((entry) => (
+                        <View
+                          key={entry.id}
+                          style={[styles.gradeEntry, shadows.sm, { backgroundColor: colors.card, borderLeftColor: gradeColor(entry.grade) }]}
+                        >
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ color: colors.text, fontWeight: '700', fontSize: 13 }}>{entry.title}</Text>
+                            <View style={[styles.metaRow, { marginTop: 2 }]}>
+                              <Text style={{ color: colors.subtle, fontSize: 11 }}>{entry.points}/{entry.maxPoints}</Text>
+                              <View style={styles.dotSep} />
+                              <Text style={{ color: colors.subtle, fontSize: 11 }}>w:{entry.weight}</Text>
+                              <View style={styles.dotSep} />
+                              <Text style={{ color: colors.subtle, fontSize: 11 }}>{dayjs(entry.date).format('DD.MM.YY')}</Text>
+                            </View>
+                            {entry.note ? <Text style={{ color: colors.subtle, fontSize: 11, fontStyle: 'italic', marginTop: 2 }}>{entry.note}</Text> : null}
+                          </View>
+                          <Text style={{ color: gradeColor(entry.grade), fontWeight: '900', fontSize: 18 }}>{entry.grade.toFixed(2)}</Text>
+                          <Pressable onPress={() => { animate(); removeGrade(entry.id); }} style={({ pressed }) => [styles.deleteCircle, { opacity: pressed ? 0.6 : 1 }]}>
+                            <Ionicons name="trash-outline" size={15} color="#EF4444" />
+                          </Pressable>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              );
+            })
           )}
         </View>
-
-        {/* ── Official / Playground summaries ─ */}
-        <TrackSummary label={t('grades.official')} avg={officialWeighted} subjectAvg={officialSubjectWeighted} pts={officialPointsRate} subjectRows={officialSubjectRows} />
-        <TrackSummary label={t('grades.playground')} avg={playgroundWeighted} subjectAvg={playgroundSubjectWeighted} pts={playgroundPointsRate} subjectRows={playgroundSubjectRows} />
-
-        {/* ── Result lists ────────────────── */}
-        {renderResultRows('grades.officialResults', officialGrades)}
-        {renderResultRows('grades.playgroundResults', playgroundGrades)}
       </ScrollView>
     </View>
   );
@@ -408,16 +352,6 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     fontSize: 16,
   },
-  segmentRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  chip: {
-    borderWidth: 1.5,
-    borderRadius: radii.pill,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
   row: {
     flexDirection: 'row',
     gap: spacing.sm,
@@ -456,14 +390,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing.lg,
   },
-  resultCard: {
+  subjectCard: {
     borderRadius: radii.md,
     padding: spacing.sm + 4,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
     borderLeftWidth: 4,
-    marginBottom: spacing.xs,
   },
   metaRow: {
     flexDirection: 'row',
@@ -476,18 +409,8 @@ const styles = StyleSheet.create({
     borderRadius: 1.5,
     backgroundColor: '#94A3B8',
   },
-  deleteCircle: {
-    padding: 6,
-  },
-  subjectRow: {
-    borderRadius: radii.md,
-    padding: spacing.sm + 2,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
   miniBar: {
-    width: 48,
+    width: 40,
     height: 6,
     borderRadius: 3,
     overflow: 'hidden',
@@ -495,14 +418,31 @@ const styles = StyleSheet.create({
   weightControl: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 2,
   },
   weightBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  expandedGrades: {
+    paddingLeft: spacing.md,
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  gradeEntry: {
+    borderRadius: radii.sm + 4,
+    padding: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderLeftWidth: 3,
+  },
+  deleteCircle: {
+    padding: 5,
   },
 });

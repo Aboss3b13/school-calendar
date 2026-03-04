@@ -77,14 +77,33 @@ export default function DashboardScreen() {
     return data.events.filter((event) => event.entryType === 'lesson' && new Date(event.start).getTime() >= now).length;
   }, [data.events]);
 
+  const nextLessons = useMemo(() => {
+    const now = Date.now();
+    return data.events
+      .filter((event) => event.entryType === 'lesson' && new Date(event.start).getTime() >= now)
+      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
+      .slice(0, 6);
+  }, [data.events]);
+
+  const todayLessonCount = useMemo(() => {
+    const today = dayjs().format('YYYY-MM-DD');
+    return data.events.filter(
+      (event) => event.entryType === 'lesson' && dayjs(event.start).format('YYYY-MM-DD') === today,
+    ).length;
+  }, [data.events]);
+
+  const highPriorityTasks = useMemo(() => {
+    return data.tasks.filter((task) => !task.completed && task.priority === 'high').length;
+  }, [data.tasks]);
+
   const openTasks = data.tasks.filter((task) => !task.completed).length;
   const totalTasks = data.tasks.length;
   const completedPct = totalTasks > 0 ? Math.round(((totalTasks - openTasks) / totalTasks) * 100) : 0;
   const isTablet = width >= 860;
 
   const averageGrade = useMemo(() => {
-    const officialGrades = data.grades.filter((grade) => grade.track === 'official');
-    return weightedSubjectAverage(officialGrades, data.gradeSubjectWeights);
+    const result = weightedSubjectAverage(data.grades, data.gradeSubjectWeights);
+    return result ? result.rounded : null;
   }, [data.grades, data.gradeSubjectWeights]);
 
   async function onSync() {
@@ -233,6 +252,64 @@ export default function DashboardScreen() {
           </View>
         </View>
       ) : null}
+
+      {/* ── Next Lessons ────────────────────── */}
+      {nextLessons.length > 0 ? (
+        <View style={styles.timelineSection}>
+          <Text style={[styles.sectionHeading, { color: colors.text, fontSize: 18 * fontScaleMultiplier }]}>
+            {t('dashboard.nextLessons')}
+          </Text>
+          {nextLessons.map((lesson, idx) => (
+            <View key={`lesson_${lesson.id}_${idx}`} style={styles.timelineRow}>
+              <View style={styles.timelineDotCol}>
+                <View style={[styles.timelineDot, { backgroundColor: colors.accent, borderColor: colors.card }]} />
+                {idx < nextLessons.length - 1 ? (
+                  <View style={[styles.timelineLine, { backgroundColor: colors.border }]} />
+                ) : null}
+              </View>
+              <View style={[styles.timelineCard, shadows.sm, { backgroundColor: colors.card }]}>
+                <View style={styles.timelineCardHeader}>
+                  <Ionicons name="book" size={14} color={colors.accent} />
+                  <Text style={{ color: colors.text, fontWeight: '700', fontSize: 14 * fontScaleMultiplier, flex: 1 }} numberOfLines={1}>
+                    {lesson.title}
+                  </Text>
+                </View>
+                <Text style={{ color: colors.subtle, fontSize: 12 }}>
+                  {dayjs(lesson.start).format('ddd, DD MMM • HH:mm')} – {dayjs(lesson.end).format('HH:mm')}
+                  {lesson.subject ? ` • ${lesson.subject}` : ''}
+                  {lesson.location ? ` • ${lesson.location}` : ''}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      {/* ── Quick Insights ───────────────────── */}
+      <View style={[styles.insightCard, shadows.sm, { backgroundColor: colors.card }]}>
+        <View style={styles.insightRow}>
+          <Ionicons name="today-outline" size={18} color={colors.accent} />
+          <Text style={{ color: colors.text, fontWeight: '700', fontSize: 14 * fontScaleMultiplier }}>
+            {t('dashboard.todayLessons')}: {todayLessonCount}
+          </Text>
+        </View>
+        {highPriorityTasks > 0 ? (
+          <View style={styles.insightRow}>
+            <Ionicons name="warning-outline" size={18} color="#EF4444" />
+            <Text style={{ color: '#EF4444', fontWeight: '700', fontSize: 14 * fontScaleMultiplier }}>
+              {highPriorityTasks} {t('dashboard.urgentTasks')}
+            </Text>
+          </View>
+        ) : null}
+        {averageGrade ? (
+          <View style={styles.insightRow}>
+            <Ionicons name="trending-up-outline" size={18} color="#10B981" />
+            <Text style={{ color: colors.text, fontWeight: '700', fontSize: 14 * fontScaleMultiplier }}>
+              {t('grades.roundedAvg')}: {averageGrade.toFixed(1)}
+            </Text>
+          </View>
+        ) : null}
+      </View>
 
       {/* ── Upcoming Timeline ────────────────── */}
       {upcomingEvents.length > 0 ? (
@@ -425,5 +502,15 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontSize: 10,
     textTransform: 'uppercase',
+  },
+  insightCard: {
+    borderRadius: radii.md,
+    padding: spacing.md,
+    gap: spacing.sm + 2,
+  },
+  insightRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
 });

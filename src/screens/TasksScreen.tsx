@@ -9,7 +9,7 @@ import { shadows, spacing, radii, priorityColors } from '../theme/theme';
 
 export default function TasksScreen() {
   const { t } = useTranslation();
-  const { data, colors, isDark, addTask, toggleTask, fontScaleMultiplier } = useAppContext();
+  const { data, colors, isDark, addTask, toggleTask, deleteTask, fontScaleMultiplier } = useAppContext();
 
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState('');
@@ -191,65 +191,75 @@ export default function TasksScreen() {
           sortedTasks.map((task) => {
             const pc = priorityColors[task.priority] ?? colors.accent;
             return (
-              <Pressable
-                key={task.id}
-                onPress={() => {
-                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                  toggleTask(task.id);
-                }}
-                style={({ pressed }) => [
-                  styles.taskCard,
-                  shadows.sm,
-                  {
-                    backgroundColor: colors.card,
-                    borderLeftColor: pc,
-                    opacity: pressed ? 0.9 : task.completed ? 0.6 : 1,
-                  },
-                ]}
-              >
-                <View
-                  style={[
-                    styles.checkbox,
+              <View key={task.id} style={styles.taskRow}>
+                <Pressable
+                  onPress={() => {
+                    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                    toggleTask(task.id);
+                  }}
+                  style={({ pressed }) => [
+                    styles.taskCard,
+                    shadows.sm,
                     {
-                      borderColor: task.completed ? colors.accent : isDark ? '#475569' : '#CBD5E1',
-                      backgroundColor: task.completed ? colors.accent : 'transparent',
+                      backgroundColor: colors.card,
+                      borderLeftColor: pc,
+                      opacity: pressed ? 0.9 : task.completed ? 0.6 : 1,
                     },
                   ]}
                 >
-                  {task.completed ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text
+                  <View
                     style={[
-                      styles.taskTitle,
+                      styles.checkbox,
                       {
-                        color: colors.text,
-                        textDecorationLine: task.completed ? 'line-through' : 'none',
-                        fontSize: 15 * fontScaleMultiplier,
+                        borderColor: task.completed ? colors.accent : isDark ? '#475569' : '#CBD5E1',
+                        backgroundColor: task.completed ? colors.accent : 'transparent',
                       },
                     ]}
-                    numberOfLines={2}
                   >
-                    {task.title}
-                  </Text>
-                  <View style={styles.taskMeta}>
-                    {task.subject ? (
-                      <View style={[styles.taskChip, { backgroundColor: `${pc}15` }]}>
-                        <Text style={{ color: pc, fontWeight: '700', fontSize: 11 }}>{task.subject}</Text>
-                      </View>
-                    ) : null}
-                    {task.dueDate ? (
-                      <Text style={{ color: colors.subtle, fontSize: 12 }}>
-                        {dayjs(task.dueDate).format('DD MMM')}
-                      </Text>
-                    ) : null}
-                    <View style={[styles.prioDot, { backgroundColor: pc }]} />
-                    <Text style={{ color: pc, fontSize: 11, fontWeight: '700', textTransform: 'uppercase' }}>
-                      {t(`tasks.${task.priority}`)}
-                    </Text>
+                    {task.completed ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
                   </View>
-                </View>
-              </Pressable>
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={[
+                        styles.taskTitle,
+                        {
+                          color: colors.text,
+                          textDecorationLine: task.completed ? 'line-through' : 'none',
+                          fontSize: 15 * fontScaleMultiplier,
+                        },
+                      ]}
+                      numberOfLines={2}
+                    >
+                      {task.title}
+                    </Text>
+                    <View style={styles.taskMeta}>
+                      {task.subject ? (
+                        <View style={[styles.taskChip, { backgroundColor: `${pc}15` }]}>
+                          <Text style={{ color: pc, fontWeight: '700', fontSize: 11 }}>{task.subject}</Text>
+                        </View>
+                      ) : null}
+                      {task.dueDate ? (
+                        <Text style={{ color: colors.subtle, fontSize: 12 }}>
+                          {dayjs(task.dueDate).format('DD MMM')}
+                        </Text>
+                      ) : null}
+                      <View style={[styles.prioDot, { backgroundColor: pc }]} />
+                      <Text style={{ color: pc, fontSize: 11, fontWeight: '700', textTransform: 'uppercase' }}>
+                        {t(`tasks.${task.priority}`)}
+                      </Text>
+                    </View>
+                  </View>
+                  <Pressable
+                    onPress={() => {
+                      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                      deleteTask(task.id);
+                    }}
+                    style={({ pressed }) => [styles.deleteBtn, { opacity: pressed ? 0.6 : 1 }]}
+                  >
+                    <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                  </Pressable>
+                </Pressable>
+              </View>
             );
           })
         )}
@@ -372,5 +382,10 @@ const styles = StyleSheet.create({
     width: 5,
     height: 5,
     borderRadius: 3,
+  },
+  taskRow: {
+  },
+  deleteBtn: {
+    padding: 6,
   },
 });

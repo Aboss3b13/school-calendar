@@ -7,7 +7,7 @@ import { WidgetPreview } from 'react-native-android-widget';
 import { useAppContext } from '../context/AppContext';
 import { renderSchoolOverviewWidget } from '../widgets/SchoolOverviewWidget';
 import { weightedSubjectAverage } from '../services/grades';
-import { shadows, spacing, radii } from '../theme/theme';
+import { shadows, spacing, radii, gradeColor } from '../theme/theme';
 
 export default function WidgetsScreen() {
   const { t } = useTranslation();
@@ -20,11 +20,17 @@ export default function WidgetsScreen() {
       .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())[0];
   }, [data.events]);
 
+  const nextLessons = useMemo(() => {
+    const now = Date.now();
+    return data.events
+      .filter((e) => e.entryType === 'lesson' && new Date(e.start).getTime() >= now)
+      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
+      .slice(0, 4);
+  }, [data.events]);
+
   const openTasks = data.tasks.filter((t) => !t.completed).length;
-  const averageGrade = weightedSubjectAverage(
-    data.grades.filter((g) => g.track === 'official'),
-    data.gradeSubjectWeights,
-  );
+  const avgResult = weightedSubjectAverage(data.grades, data.gradeSubjectWeights);
+  const averageGrade = avgResult ? avgResult.rounded : null;
 
   const quickStats = [
     { icon: 'list-outline' as const, value: openTasks, label: t('dashboard.openTasks'), color: '#3B82F6' },
@@ -82,6 +88,29 @@ export default function WidgetsScreen() {
           <Text style={{ color: colors.subtle, fontSize: 12, lineHeight: 18 }}>{t('widgets.installSteps')}</Text>
         </View>
 
+        {/* ── Next Lessons List ──────────── */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: spacing.xs }}>
+          <Ionicons name="book-outline" size={17} color={colors.accent} />
+          <Text style={{ color: colors.text, fontWeight: '900', fontSize: 17 * fontScaleMultiplier }}>{t('dashboard.nextLessons')}</Text>
+        </View>
+        {nextLessons.length === 0 ? (
+          <Text style={{ color: colors.subtle, fontSize: 13 }}>{t('widgets.noLessons')}</Text>
+        ) : (
+          nextLessons.map((lesson, idx) => (
+            <View key={`wl_${lesson.id}_${idx}`} style={[styles.lessonCard, shadows.sm, { backgroundColor: colors.card }]}>
+              <Ionicons name="book" size={16} color={colors.accent} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.text, fontWeight: '700', fontSize: 14 }} numberOfLines={1}>{lesson.title}</Text>
+                <Text style={{ color: colors.subtle, fontSize: 12 }}>
+                  {dayjs(lesson.start).format('ddd, DD MMM · HH:mm')} – {dayjs(lesson.end).format('HH:mm')}
+                  {lesson.subject ? ` · ${lesson.subject}` : ''}
+                  {lesson.location ? ` · ${lesson.location}` : ''}
+                </Text>
+              </View>
+            </View>
+          ))
+        )}
+
         {/* ── Quick Stat Tiles ───────────── */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: spacing.xs }}>
           <Ionicons name="stats-chart-outline" size={17} color={colors.accent} />
@@ -97,6 +126,17 @@ export default function WidgetsScreen() {
             </View>
           ))}
         </View>
+
+        {/* ── Grade average tile ─────────── */}
+        {averageGrade ? (
+          <View style={[styles.gradeAvgTile, shadows.sm, { backgroundColor: colors.card }]}>
+            <Ionicons name="ribbon-outline" size={22} color={gradeColor(averageGrade)} />
+            <View>
+              <Text style={{ color: colors.subtle, fontSize: 11, fontWeight: '700', textTransform: 'uppercase' }}>{t('grades.roundedAvg')}</Text>
+              <Text style={{ color: gradeColor(averageGrade), fontWeight: '900', fontSize: 28 }}>{averageGrade.toFixed(2)}</Text>
+            </View>
+          </View>
+        ) : null}
       </ScrollView>
     </View>
   );
@@ -138,5 +178,19 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     padding: spacing.sm + 4,
     minHeight: 100,
+  },
+  lessonCard: {
+    borderRadius: radii.md,
+    padding: spacing.sm + 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  gradeAvgTile: {
+    borderRadius: radii.md,
+    padding: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
   },
 });

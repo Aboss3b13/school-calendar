@@ -1,8 +1,9 @@
-import { GradeItem, GradeTrack } from '../types/models';
+import { GradeItem } from '../types/models';
 
 interface SubjectAverage {
   subject: string;
   average: number;
+  roundedAverage: number;
   totalWeight: number;
   entries: number;
 }
@@ -11,11 +12,9 @@ export function toSubjectKey(subject: string) {
   return subject.trim().toUpperCase();
 }
 
-export function splitByTrack(grades: GradeItem[]) {
-  return {
-    official: grades.filter((grade) => grade.track === 'official'),
-    playground: grades.filter((grade) => grade.track === 'playground'),
-  };
+/** Round a grade to the nearest 0.5 */
+export function roundToHalf(value: number): number {
+  return Math.round(value * 2) / 2;
 }
 
 export function computeGrade(points: number, maxPoints: number) {
@@ -57,7 +56,10 @@ export function pointsPercent(grades: GradeItem[]) {
   return (100 * points) / maxPoints;
 }
 
-export function subjectAverages(grades: GradeItem[]) {
+/**
+ * Compute per-subject averages, returning both the unrounded and rounded (0.5) averages.
+ */
+export function subjectAverages(grades: GradeItem[]): SubjectAverage[] {
   const groups = new Map<string, GradeItem[]>();
 
   grades.forEach((grade) => {
@@ -76,9 +78,12 @@ export function subjectAverages(grades: GradeItem[]) {
       0,
     );
 
+    const avg = totalWeight > 0 ? weightedSum / totalWeight : 0;
+
     summaries.push({
       subject,
-      average: totalWeight > 0 ? weightedSum / totalWeight : 0,
+      average: avg,
+      roundedAverage: roundToHalf(avg),
       totalWeight,
       entries: subjectGrades.length,
     });
@@ -87,33 +92,40 @@ export function subjectAverages(grades: GradeItem[]) {
   return summaries.sort((left, right) => left.subject.localeCompare(right.subject));
 }
 
+/**
+ * Compute the overall weighted average across all subjects.
+ * Returns { rounded, unrounded } where:
+ *  - rounded: weighted average of each subject's 0.5-rounded average
+ *  - unrounded: weighted average of each subject's exact average
+ */
 export function weightedSubjectAverage(
   grades: GradeItem[],
   subjectWeights: Record<string, number>,
-  track?: GradeTrack,
-) {
-  const scopedGrades = track ? grades.filter((grade) => grade.track === track) : grades;
-  const subjects = subjectAverages(scopedGrades);
+): { rounded: number; unrounded: number } | null {
+  const subjects = subjectAverages(grades);
 
   if (subjects.length === 0) {
     return null;
   }
 
-  const totalSubjectWeight = subjects.reduce((sum, summary) => {
+  let totalSubjectWeight = 0;
+  let weightedSumRounded = 0;
+  let weightedSumUnrounded = 0;
+
+  subjects.forEach((summary) => {
     const configuredWeight = subjectWeights[summary.subject];
-    const normalizedWeight = configuredWeight && configuredWeight > 0 ? configuredWeight : 1;
-    return sum + normalizedWeight;
-  }, 0);
+    const w = configuredWeight && configuredWeight > 0 ? configuredWeight : 1;
+    totalSubjectWeight += w;
+    weightedSumRounded += summary.roundedAverage * w;
+    weightedSumUnrounded += summary.average * w;
+  });
 
   if (totalSubjectWeight <= 0) {
     return null;
   }
 
-  const weightedSum = subjects.reduce((sum, summary) => {
-    const configuredWeight = subjectWeights[summary.subject];
-    const normalizedWeight = configuredWeight && configuredWeight > 0 ? configuredWeight : 1;
-    return sum + summary.average * normalizedWeight;
-  }, 0);
-
-  return weightedSum / totalSubjectWeight;
+  return {
+    rounded: weightedSumRounded / totalSubjectWeight,
+    unrounded: weightedSumUnrounded / totalSubjectWeight,
+  };
 }

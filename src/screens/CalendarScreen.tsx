@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 import dayjs from 'dayjs';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,6 +26,7 @@ export default function CalendarScreen() {
   const [sortMode, setSortMode] = useState<SortMode>('time');
   const [subjectFilter, setSubjectFilter] = useState<string>('all');
   const [showPastExams, setShowPastExams] = useState(false);
+  const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(null);
 
   const now = dayjs();
 
@@ -146,6 +147,7 @@ export default function CalendarScreen() {
     return (
       <Pressable
         key={`${event.id}_${event.start}`}
+        onPress={() => setDetailEvent(event)}
         style={({ pressed }) => [
           styles.eventCard,
           shadows.sm,
@@ -315,7 +317,85 @@ export default function CalendarScreen() {
           )}
         </View>
       ) : null}
+
+      {/* ── Event Detail Modal ────────────── */}
+      <Modal
+        visible={detailEvent !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDetailEvent(null)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setDetailEvent(null)}>
+          <Pressable style={[styles.modalCard, shadows.lg, { backgroundColor: colors.card }]} onPress={() => {}}>
+            {detailEvent && (
+              <>
+                <View style={styles.modalHeader}>
+                  <Ionicons
+                    name={(ENTRY_ICON[detailEvent.entryType] ?? 'calendar') as any}
+                    size={22}
+                    color={detailEvent.entryType === 'exam' ? '#EF4444' : colors.accent}
+                  />
+                  <Text style={[styles.modalTitle, { color: colors.text }]} numberOfLines={3}>
+                    {detailEvent.title}
+                  </Text>
+                  <Pressable onPress={() => setDetailEvent(null)}>
+                    <Ionicons name="close" size={22} color={colors.subtle} />
+                  </Pressable>
+                </View>
+
+                <View style={styles.modalBody}>
+                  {detailEvent.entryType === 'exam' && (
+                    <View style={[styles.detailPill, { backgroundColor: '#FEE2E2' }]}>
+                      <Ionicons name="alert-circle" size={14} color="#EF4444" />
+                      <Text style={{ color: '#EF4444', fontWeight: '800', fontSize: 12 }}>{t('calendar.exams')}</Text>
+                    </View>
+                  )}
+
+                  <DetailRow icon="time-outline" label={t('calendar.detailTime')} value={
+                    detailEvent.allDay
+                      ? t('calendar.allDay')
+                      : `${dayjs(detailEvent.start).format('ddd, DD MMM YYYY · HH:mm')} – ${dayjs(detailEvent.end).format('HH:mm')}`
+                  } colors={colors} />
+
+                  {detailEvent.subject ? (
+                    <DetailRow icon="book-outline" label={t('grades.subject')} value={detailEvent.subject} colors={colors} />
+                  ) : null}
+
+                  {detailEvent.location ? (
+                    <DetailRow icon="location-outline" label={t('calendar.detailLocation')} value={detailEvent.location} colors={colors} />
+                  ) : null}
+
+                  <DetailRow icon="pricetag-outline" label={t('calendar.detailType')} value={
+                    detailEvent.entryType === 'exam' ? t('calendar.exams') :
+                    detailEvent.entryType === 'lesson' ? t('calendar.lessons') :
+                    t('calendar.events')
+                  } colors={colors} />
+
+                  {detailEvent.description ? (
+                    <View style={styles.descriptionBlock}>
+                      <Text style={{ color: colors.subtle, fontWeight: '700', fontSize: 12, marginBottom: 4 }}>{t('calendar.detailDescription')}</Text>
+                      <Text style={{ color: colors.text, fontSize: 14, lineHeight: 20 }}>{detailEvent.description}</Text>
+                    </View>
+                  ) : null}
+                </View>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ScrollView>
+  );
+}
+
+function DetailRow({ icon, label, value, colors }: { icon: string; label: string; value: string; colors: { text: string; subtle: string; accent: string } }) {
+  return (
+    <View style={styles.detailRow}>
+      <Ionicons name={icon as any} size={16} color={colors.accent} />
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: colors.subtle, fontWeight: '700', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.3 }}>{label}</Text>
+        <Text style={{ color: colors.text, fontSize: 14, fontWeight: '600' }}>{value}</Text>
+      </View>
+    </View>
   );
 }
 
@@ -411,5 +491,52 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     paddingVertical: 12,
     marginTop: spacing.sm,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.md,
+  },
+  modalCard: {
+    borderRadius: radii.lg,
+    padding: spacing.lg,
+    width: '100%',
+    maxWidth: 420,
+    gap: spacing.sm,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  modalTitle: {
+    flex: 1,
+    fontWeight: '900',
+    fontSize: 18,
+    letterSpacing: -0.3,
+  },
+  modalBody: {
+    gap: spacing.sm + 2,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  detailPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    borderRadius: radii.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  descriptionBlock: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(148,163,184,0.2)',
+    paddingTop: spacing.sm,
   },
 });
