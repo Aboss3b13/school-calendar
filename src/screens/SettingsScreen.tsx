@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useAppContext } from '../context/AppContext';
@@ -12,14 +12,35 @@ const fontScales: FontScale[] = ['small', 'normal', 'large'];
 
 export default function SettingsScreen() {
   const { t } = useTranslation();
-  const { data, colors, updateSettings } = useAppContext();
+  const { data, colors, updateSettings, syncCalendar, fontScaleMultiplier } = useAppContext();
 
   const [iCalUrl, setICalUrl] = useState(data.settings.iCalUrl);
+  const [isSavingCalendar, setIsSavingCalendar] = useState(false);
+
+  useEffect(() => {
+    setICalUrl(data.settings.iCalUrl);
+  }, [data.settings.iCalUrl]);
+
+  const cardRadius = useMemo(
+    () => (data.settings.cardStyle === 'soft' ? 24 : data.settings.cardStyle === 'glass' ? 20 : 16),
+    [data.settings.cardStyle],
+  );
+  const cardPadding = data.settings.compactMode ? 10 : 12;
+
+  async function onSaveCalendarSettings() {
+    setIsSavingCalendar(true);
+    try {
+      updateSettings({ iCalUrl });
+      await syncCalendar(iCalUrl);
+    } finally {
+      setIsSavingCalendar(false);
+    }
+  }
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={styles.content}>
-      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <Text style={[styles.heading, { color: colors.text }]}>{t('settings.language')}</Text>
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: cardRadius, padding: cardPadding }]}> 
+        <Text style={[styles.heading, { color: colors.text, fontSize: 15 * fontScaleMultiplier }]}>{t('settings.language')}</Text>
         <View style={styles.rowWrap}>
           {languages.map((lang) => (
             <Pressable
@@ -38,7 +59,7 @@ export default function SettingsScreen() {
           ))}
         </View>
 
-        <Text style={[styles.heading, { color: colors.text }]}>{t('settings.theme')}</Text>
+        <Text style={[styles.heading, { color: colors.text, fontSize: 15 * fontScaleMultiplier }]}>{t('settings.theme')}</Text>
         <View style={styles.rowWrap}>
           {modes.map((mode) => (
             <Pressable
@@ -57,7 +78,7 @@ export default function SettingsScreen() {
           ))}
         </View>
 
-        <Text style={[styles.heading, { color: colors.text }]}>{t('settings.accent')}</Text>
+        <Text style={[styles.heading, { color: colors.text, fontSize: 15 * fontScaleMultiplier }]}>{t('settings.accent')}</Text>
         <View style={styles.rowWrap}>
           {accents.map((accent) => (
             <Pressable
@@ -111,7 +132,7 @@ export default function SettingsScreen() {
           />
         </View>
 
-        <Text style={[styles.heading, { color: colors.text }]}>{t('settings.cardStyle')}</Text>
+        <Text style={[styles.heading, { color: colors.text, fontSize: 15 * fontScaleMultiplier }]}>{t('settings.cardStyle')}</Text>
         <View style={styles.rowWrap}>
           {cardStyles.map((style) => (
             <Pressable
@@ -130,7 +151,7 @@ export default function SettingsScreen() {
           ))}
         </View>
 
-        <Text style={[styles.heading, { color: colors.text }]}>{t('settings.fontScale')}</Text>
+        <Text style={[styles.heading, { color: colors.text, fontSize: 15 * fontScaleMultiplier }]}>{t('settings.fontScale')}</Text>
         <View style={styles.rowWrap}>
           {fontScales.map((scale) => (
             <Pressable
@@ -148,10 +169,28 @@ export default function SettingsScreen() {
             </Pressable>
           ))}
         </View>
+
+        <Text style={[styles.heading, { color: colors.text, fontSize: 15 * fontScaleMultiplier }]}>{t('settings.preview')}</Text>
+        <View
+          style={[
+            styles.previewCard,
+            {
+              borderColor: colors.border,
+              borderRadius: cardRadius,
+              backgroundColor: data.settings.cardStyle === 'glass' ? `${colors.accent}18` : `${colors.accent}12`,
+              padding: cardPadding,
+            },
+          ]}
+        >
+          <Text style={{ color: colors.text, fontWeight: '900', fontSize: 16 * fontScaleMultiplier }}>
+            {t('settings.previewTitle')}
+          </Text>
+          <Text style={{ color: colors.subtle, fontSize: 13 * fontScaleMultiplier }}>{t('settings.previewHint')}</Text>
+        </View>
       </View>
 
-      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <Text style={[styles.heading, { color: colors.text }]}>{t('settings.iCalUrl')}</Text>
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: cardRadius, padding: cardPadding }]}> 
+        <Text style={[styles.heading, { color: colors.text, fontSize: 15 * fontScaleMultiplier }]}>{t('settings.iCalUrl')}</Text>
         <TextInput
           value={iCalUrl}
           onChangeText={setICalUrl}
@@ -160,8 +199,10 @@ export default function SettingsScreen() {
           style={[styles.input, { borderColor: colors.border, color: colors.text }]}
           multiline
         />
-        <Pressable onPress={() => updateSettings({ iCalUrl })} style={[styles.saveBtn, { backgroundColor: colors.accent }]}>
-          <Text style={{ color: '#fff', fontWeight: '800' }}>{t('settings.save')}</Text>
+        <Pressable onPress={onSaveCalendarSettings} style={[styles.saveBtn, { backgroundColor: colors.accent }]}> 
+          <Text style={{ color: '#fff', fontWeight: '800' }}>
+            {isSavingCalendar ? t('common.loading') : t('settings.saveAndSync')}
+          </Text>
         </Pressable>
       </View>
     </ScrollView>
@@ -216,5 +257,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 12,
     alignItems: 'center',
+  },
+  previewCard: {
+    borderWidth: 1,
+    gap: 6,
   },
 });

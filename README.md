@@ -17,10 +17,16 @@ An all-in-one school organizer app for phone + tablet with iCal sync, exam track
   - Notebooks + sections + templates
   - Tags, favorites, pinning, checklist items, color coding, fast filtering
 - **Swiss grade calculator**
+  - Official grade tracking + separate playground simulation
   - Weighted average grade (1–6 scale)
+  - Subject-specific averages (subjects stay separate)
+  - Combined all-subject average with configurable per-subject weights (default = 1)
   - Points-to-grade conversion and target-grade point calculator
 - **Android home-screen widget support**
-  - SchoolFlow overview widget (next exam, open tasks, average grade)
+  - SchoolFlow overview widget
+  - Calendar widget (today + next event)
+  - Next test widget
+  - Quick grade widget (official average + open tasks)
   - In-app widget preview and live sync toggle
 - **Fully bilingual**: English + German switch at runtime
 - **Customization**: dark/light/system mode, accent colors, compact mode, card styles, font scale, animation toggle, widget sync toggle, editable iCal URL
@@ -77,6 +83,14 @@ eas build -p android --profile preview
 ```
 
 4. Open the build URL from the terminal and download the generated APK.
+
+## GitHub APK releases (versioned)
+
+The GitHub Actions workflow now publishes a **new versioned release tag** for each build:
+
+- Tag format: `v1.<run_number>`
+- APK file format: `SchoolFlow-Planner-v1.<run_number>.apk`
+- Previous APK releases are kept (not replaced/deleted)
 
 ## Publish to your GitHub repo
 

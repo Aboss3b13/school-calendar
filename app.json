@@ -2,7 +2,7 @@
   "expo": {
     "name": "SchoolFlow Planner",
     "slug": "school-calendar-app",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -40,6 +40,39 @@
               "minWidth": "250dp",
               "minHeight": "120dp",
               "targetCellWidth": 4,
+              "targetCellHeight": 2,
+              "previewImage": "./assets/icon.png",
+              "updatePeriodMillis": 1800000
+            },
+            {
+              "name": "CalendarWidget",
+              "label": "SchoolFlow Calendar",
+              "description": "Today and next calendar event",
+              "minWidth": "220dp",
+              "minHeight": "120dp",
+              "targetCellWidth": 4,
+              "targetCellHeight": 2,
+              "previewImage": "./assets/icon.png",
+              "updatePeriodMillis": 1800000
+            },
+            {
+              "name": "NextTestWidget",
+              "label": "SchoolFlow Next Test",
+              "description": "Next upcoming test with subject and date",
+              "minWidth": "220dp",
+              "minHeight": "120dp",
+              "targetCellWidth": 4,
+              "targetCellHeight": 2,
+              "previewImage": "./assets/icon.png",
+              "updatePeriodMillis": 1800000
+            },
+            {
+              "name": "QuickGradeWidget",
+              "label": "SchoolFlow Grade",
+              "description": "Official weighted average and open tasks",
+              "minWidth": "180dp",
+              "minHeight": "120dp",
+              "targetCellWidth": 3,
               "targetCellHeight": 2,
               "previewImage": "./assets/icon.png",
               "updatePeriodMillis": 1800000

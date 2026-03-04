@@ -6,10 +6,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useAppContext } from '../context/AppContext';
 import SectionCard from '../components/SectionCard';
 import InfoWidget from '../components/InfoWidget';
+import { weightedSubjectAverage } from '../services/grades';
 
 export default function DashboardScreen() {
   const { t } = useTranslation();
-  const { data, colors, syncCalendar } = useAppContext();
+  const { data, colors, syncCalendar, fontScaleMultiplier } = useAppContext();
   const [isSyncing, setIsSyncing] = useState(false);
   const { width } = useWindowDimensions();
   const pulseValue = useRef(new Animated.Value(0)).current;
@@ -50,15 +51,9 @@ export default function DashboardScreen() {
   const isTablet = width >= 860;
 
   const averageGrade = useMemo(() => {
-    if (data.grades.length === 0) {
-      return null;
-    }
-    const totalWeight = data.grades.reduce((sum, item) => sum + item.weight, 0);
-    if (totalWeight <= 0) {
-      return null;
-    }
-    return data.grades.reduce((sum, item) => sum + item.grade * item.weight, 0) / totalWeight;
-  }, [data.grades]);
+    const officialGrades = data.grades.filter((grade) => grade.track === 'official');
+    return weightedSubjectAverage(officialGrades, data.gradeSubjectWeights);
+  }, [data.grades, data.gradeSubjectWeights]);
 
   async function onSync() {
     setIsSyncing(true);
@@ -87,10 +82,17 @@ export default function DashboardScreen() {
           colors={[colors.accent, '#6366F1']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={styles.hero}
+          style={[
+            styles.hero,
+            {
+              borderRadius:
+                data.settings.cardStyle === 'soft' ? 26 : data.settings.cardStyle === 'glass' ? 22 : 18,
+              padding: data.settings.compactMode ? 14 : 18,
+            },
+          ]}
         >
-          <Text style={styles.heroTitle}>{t('dashboard.title')}</Text>
-          <Text style={styles.heroText}>{t('dashboard.welcome')}</Text>
+          <Text style={[styles.heroTitle, { fontSize: 22 * fontScaleMultiplier }]}>{t('dashboard.title')}</Text>
+          <Text style={[styles.heroText, { fontSize: 14 * fontScaleMultiplier }]}>{t('dashboard.welcome')}</Text>
         </LinearGradient>
       </Animated.View>
 

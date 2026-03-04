@@ -5,10 +5,15 @@ import { useTranslation } from 'react-i18next';
 import { WidgetPreview } from 'react-native-android-widget';
 import { useAppContext } from '../context/AppContext';
 import { renderSchoolOverviewWidget } from '../widgets/SchoolOverviewWidget';
+import { weightedSubjectAverage } from '../services/grades';
 
 export default function WidgetsScreen() {
   const { t } = useTranslation();
-  const { data, colors, updateSettings } = useAppContext();
+  const { data, colors, updateSettings, fontScaleMultiplier } = useAppContext();
+
+  const cardRadius =
+    data.settings.cardStyle === 'soft' ? 22 : data.settings.cardStyle === 'glass' ? 20 : 16;
+  const cardPadding = data.settings.compactMode ? 10 : 12;
 
   const nextExam = useMemo(() => {
     const now = Date.now();
@@ -18,16 +23,15 @@ export default function WidgetsScreen() {
   }, [data.events]);
 
   const openTasks = data.tasks.filter((task) => !task.completed).length;
-  const averageGrade =
-    data.grades.length > 0
-      ? data.grades.reduce((sum, entry) => sum + entry.grade * entry.weight, 0) /
-        data.grades.reduce((sum, entry) => sum + entry.weight, 0)
-      : null;
+  const averageGrade = weightedSubjectAverage(
+    data.grades.filter((grade) => grade.track === 'official'),
+    data.gradeSubjectWeights,
+  );
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={styles.content}>
-      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}> 
-        <Text style={[styles.heading, { color: colors.text }]}>{t('widgets.homeWidgets')}</Text>
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: cardRadius, padding: cardPadding }]}> 
+        <Text style={[styles.heading, { color: colors.text, fontSize: 16 * fontScaleMultiplier }]}>{t('widgets.homeWidgets')}</Text>
 
         <View style={styles.switchRow}> 
           <Text style={{ color: colors.text }}>{t('widgets.enableSync')}</Text>
@@ -61,8 +65,8 @@ export default function WidgetsScreen() {
         <Text style={{ color: colors.subtle }}>{t('widgets.installSteps')}</Text>
       </View>
 
-      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}> 
-        <Text style={[styles.heading, { color: colors.text }]}>{t('widgets.quickWidgets')}</Text>
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: cardRadius, padding: cardPadding }]}> 
+        <Text style={[styles.heading, { color: colors.text, fontSize: 16 * fontScaleMultiplier }]}>{t('widgets.quickWidgets')}</Text>
 
         <View style={styles.quickRow}> 
           <Pressable style={[styles.quickTile, { borderColor: colors.border }]}> 

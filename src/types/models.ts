@@ -8,6 +8,8 @@ export type CardStyle = 'rounded' | 'soft' | 'glass';
 
 export type FontScale = 'small' | 'normal' | 'large';
 
+export type GradeTrack = 'official' | 'playground';
+
 export type TaskPriority = 'low' | 'medium' | 'high';
 
 export type NoteType = 'typed' | 'ink' | 'mixed';
@@ -65,6 +67,7 @@ export interface GradeItem {
   id: string;
   title: string;
   subject: string;
+  track: GradeTrack;
   points: number;
   maxPoints: number;
   weight: number;
@@ -90,6 +93,7 @@ export interface AppStateSnapshot {
   tasks: TaskItem[];
   notes: NoteItem[];
   grades: GradeItem[];
+  gradeSubjectWeights: Record<string, number>;
   settings: AppSettings;
   lastCalendarSync?: string;
 }

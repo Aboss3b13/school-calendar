@@ -42,24 +42,28 @@ jobs:
           ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon
 
       - name: Prepare APK asset
+        id: release_meta
         run: |
+          VERSION_TAG="v1.${GITHUB_RUN_NUMBER}"
+          APK_NAME="SchoolFlow-Planner-${VERSION_TAG}.apk"
           mkdir -p dist
-          cp android/app/build/outputs/apk/release/app-release.apk dist/SchoolFlow-Planner.apk
+          cp android/app/build/outputs/apk/release/app-release.apk "dist/${APK_NAME}"
+          echo "release_tag=${VERSION_TAG}" >> "$GITHUB_OUTPUT"
+          echo "apk_name=${APK_NAME}" >> "$GITHUB_OUTPUT"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SchoolFlow-Planner-apk
-          path: dist/SchoolFlow-Planner.apk
+          name: SchoolFlow-Planner-apk-${{ steps.release_meta.outputs.release_tag }}
+          path: dist/${{ steps.release_meta.outputs.apk_name }}
 
       - name: Publish to GitHub Release
         uses: ncipollo/release-action@v1
         with:
-          tag: latest-apk
-          name: Latest APK Build
+          tag: ${{ steps.release_meta.outputs.release_tag }}
+          name: SchoolFlow APK ${{ steps.release_meta.outputs.release_tag }}
           allowUpdates: true
-          replacesArtifacts: true
-          artifacts: dist/SchoolFlow-Planner.apk
+          artifacts: dist/${{ steps.release_meta.outputs.apk_name }}
           body: |
             Auto-generated Android APK from the latest main branch commit.
-            File: SchoolFlow-Planner.apk
+            File: ${{ steps.release_meta.outputs.apk_name }}

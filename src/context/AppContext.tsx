@@ -3,6 +3,7 @@ import { Platform, useColorScheme } from 'react-native';
 import { requestWidgetUpdate } from 'react-native-android-widget';
 import i18n from '../i18n';
 import { fetchCalendarEvents } from '../services/ical';
+import { weightedSubjectAverage, computeGrade, toSubjectKey } from '../services/grades';
 import { loadSnapshot, saveSnapshot } from '../services/storage';
 import { accentPalette, neutralPalette } from '../theme/theme';
 import {
@@ -17,6 +18,9 @@ import {
 } from '../types/models';
 import { defaultIcalUrl } from '../services/ical';
 import { renderSchoolOverviewWidget } from '../widgets/SchoolOverviewWidget';
+import { renderCalendarWidget } from '../widgets/CalendarWidget';
+import { renderNextTestWidget } from '../widgets/NextTestWidget';
+import { renderQuickGradeWidget } from '../widgets/QuickGradeWidget';
 
 const defaultSettings: AppSettings = {
   iCalUrl: defaultIcalUrl,
@@ -35,6 +39,7 @@ const defaultState: AppStateSnapshot = {
   tasks: [],
   notes: [],
   grades: [],
+  gradeSubjectWeights: {},
   settings: defaultSettings,
 };
 
@@ -67,6 +72,14 @@ function normalizeNote(note: NoteItem): NoteItem {
   };
 }
 
+function normalizeGrade(grade: GradeItem): GradeItem {
+  return {
+    ...grade,
+    subject: toSubjectKey(grade.subject),
+    track: grade.track === 'playground' ? 'playground' : 'official',
+  };
+}
+
 interface AppColors {
   background: string;
   card: string;
@@ -93,6 +106,7 @@ interface AppContextValue {
   deleteNote: (noteId: string) => void;
   addGrade: (grade: Omit<GradeItem, 'id' | 'grade' | 'date'> & { date?: string }) => void;
   removeGrade: (gradeId: string) => void;
+  setGradeSubjectWeight: (subject: string, weight: number) => void;
 }
 
 const AppContext = createContext<AppContextValue | undefined>(undefined);
@@ -114,7 +128,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           ...snapshot,
           events: (snapshot.events ?? []).map((event) => normalizeEvent(event)),
           notes: (snapshot.notes ?? []).map((note) => normalizeNote(note)),
-          grades: snapshot.grades ?? [],
+          grades: (snapshot.grades ?? []).map((grade) => normalizeGrade(grade)),
+          gradeSubjectWeights: snapshot.gradeSubjectWeights ?? {},
           settings: {
             ...defaultSettings,
             ...snapshot.settings,
@@ -144,32 +159,76 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     const now = Date.now();
+    const upcomingEvents = data.events
+      .filter((event) => new Date(event.start).getTime() >= now)
+      .sort((left, right) => new Date(left.start).getTime() - new Date(right.start).getTime());
+
+    const nextEvent = upcomingEvents[0];
     const nextExam = data.events
       .filter((event) => event.entryType === 'exam' && new Date(event.start).getTime() >= now)
       .sort((left, right) => new Date(left.start).getTime() - new Date(right.start).getTime())[0];
 
     const openTasks = data.tasks.filter((task) => !task.completed).length;
-    const avgGrade =
-      data.grades.length > 0
-        ? data.grades.reduce((sum, item) => sum + item.grade * item.weight, 0) /
-          data.grades.reduce((sum, item) => sum + item.weight, 0)
-        : null;
+    const officialGrades = data.grades.filter((grade) => grade.track === 'official');
+    const avgGrade = weightedSubjectAverage(officialGrades, data.gradeSubjectWeights);
 
-    void requestWidgetUpdate({
-      widgetName: 'SchoolOverview',
-      renderWidget: () =>
-        renderSchoolOverviewWidget({
-          title: 'SchoolFlow',
-          subtitle: nextExam ? nextExam.title : 'No upcoming exam',
-          openTasks,
-          averageGrade: avgGrade,
-          accent: accentPalette[data.settings.accentKey],
-        }),
-    }).catch(() => undefined);
+    void Promise.all([
+      requestWidgetUpdate({
+        widgetName: 'SchoolOverview',
+        renderWidget: () =>
+          renderSchoolOverviewWidget({
+            title: 'SchoolFlow',
+            subtitle: nextExam ? nextExam.title : 'No upcoming exam',
+            openTasks,
+            averageGrade: avgGrade,
+            accent: accentPalette[data.settings.accentKey],
+          }),
+      }),
+      requestWidgetUpdate({
+        widgetName: 'CalendarWidget',
+        renderWidget: () =>
+          renderCalendarWidget({
+            title: 'Today',
+            dateLabel: new Date().toLocaleDateString(),
+            nextEventTitle: nextEvent?.title ?? 'No upcoming events',
+            nextEventTime: nextEvent
+              ? new Date(nextEvent.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              : '--:--',
+            accent: accentPalette[data.settings.accentKey],
+          }),
+      }),
+      requestWidgetUpdate({
+        widgetName: 'NextTestWidget',
+        renderWidget: () =>
+          renderNextTestWidget({
+            title: 'Next Test',
+            testTitle: nextExam?.title ?? 'No upcoming test',
+            subject: nextExam?.subject ?? '—',
+            dateLabel: nextExam
+              ? new Date(nextExam.start).toLocaleDateString([], {
+                  day: '2-digit',
+                  month: '2-digit',
+                })
+              : '—',
+            accent: accentPalette[data.settings.accentKey],
+          }),
+      }),
+      requestWidgetUpdate({
+        widgetName: 'QuickGradeWidget',
+        renderWidget: () =>
+          renderQuickGradeWidget({
+            title: 'Official Avg',
+            average: avgGrade,
+            openTasks,
+            accent: accentPalette[data.settings.accentKey],
+          }),
+      }),
+    ]).catch(() => undefined);
   }, [
     data.events,
     data.tasks,
     data.grades,
+    data.gradeSubjectWeights,
     data.settings.homescreenWidgets,
     data.settings.accentKey,
     isReady,
@@ -333,13 +392,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const addGrade: AppContextValue['addGrade'] = (gradeInput) => {
     const points = Math.max(0, gradeInput.points);
     const maxPoints = Math.max(1, gradeInput.maxPoints);
-    const grade = Math.min(6, Math.max(1, 1 + (5 * points) / maxPoints));
+    const grade = computeGrade(points, maxPoints);
+    const subject = toSubjectKey(gradeInput.subject);
+    const track = gradeInput.track === 'playground' ? 'playground' : 'official';
 
     setData((prev) => ({
       ...prev,
+      gradeSubjectWeights: {
+        ...prev.gradeSubjectWeights,
+        [subject]: prev.gradeSubjectWeights[subject] ?? 1,
+      },
       grades: [
         {
           ...gradeInput,
+          subject,
+          track,
           points,
           maxPoints,
           grade,
@@ -355,6 +422,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setData((prev) => ({
       ...prev,
       grades: prev.grades.filter((grade) => grade.id !== gradeId),
+    }));
+  };
+
+  const setGradeSubjectWeight: AppContextValue['setGradeSubjectWeight'] = (subjectInput, weightInput) => {
+    const subject = toSubjectKey(subjectInput);
+    const weight = Math.max(0.1, weightInput || 1);
+
+    setData((prev) => ({
+      ...prev,
+      gradeSubjectWeights: {
+        ...prev.gradeSubjectWeights,
+        [subject]: weight,
+      },
     }));
   };
 
@@ -380,6 +460,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         deleteNote,
         addGrade,
         removeGrade,
+        setGradeSubjectWeight,
       }}
     >
       {children}
