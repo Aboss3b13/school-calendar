@@ -1,7 +1,7 @@
 import 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Text, View } from 'react-native';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,9 +18,19 @@ import SettingsScreen from './src/screens/SettingsScreen';
 
 const Tab = createBottomTabNavigator();
 
+const TAB_ICONS: Record<string, string> = {
+  Dashboard: 'grid',
+  Calendar: 'calendar',
+  Tasks: 'checkmark-done',
+  Notes: 'document-text',
+  Grades: 'calculator',
+  Widgets: 'apps',
+  Settings: 'options',
+};
+
 function MainTabs() {
   const { t } = useTranslation();
-  const { colors, isReady, data, syncCalendar } = useAppContext();
+  const { colors, isDark, isReady, data, syncCalendar } = useAppContext();
 
   useEffect(() => {
     if (!isReady || data.events.length > 0) {
@@ -34,7 +44,7 @@ function MainTabs() {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
         <ActivityIndicator size="large" color={colors.accent} />
-        <Text style={{ marginTop: 12, color: colors.text }}>{t('common.loading')}</Text>
+        <Text style={{ marginTop: 12, color: colors.text, fontWeight: '600' }}>{t('common.loading')}</Text>
       </View>
     );
   }
@@ -43,46 +53,42 @@ function MainTabs() {
     <NavigationContainer
       theme={{
         ...DefaultTheme,
+        dark: isDark,
         colors: {
           ...DefaultTheme.colors,
           background: colors.background,
           card: colors.card,
           text: colors.text,
-          border: colors.border,
+          border: 'transparent',
           primary: colors.accent,
         },
       }}
     >
-      <StatusBar style="auto" />
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       <Tab.Navigator
         screenOptions={({ route }) => ({
-          headerShown: true,
+          headerShown: false,
           tabBarActiveTintColor: colors.accent,
           tabBarInactiveTintColor: colors.subtle,
+          tabBarLabelStyle: {
+            fontSize: 10,
+            fontWeight: '700',
+            letterSpacing: 0.2,
+            marginBottom: Platform.OS === 'android' ? 6 : 0,
+          },
           tabBarStyle: {
-            borderTopColor: colors.border,
             backgroundColor: colors.card,
+            borderTopWidth: 0,
+            height: Platform.OS === 'android' ? 64 : 84,
+            paddingTop: 6,
+            ...(Platform.OS === 'ios'
+              ? { shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.06, shadowRadius: 12 }
+              : { elevation: 12 }),
           },
-          headerStyle: {
-            backgroundColor: colors.card,
-          },
-          headerTintColor: colors.text,
-          tabBarIcon: ({ color, size }) => {
-            const iconName =
-              route.name === 'Dashboard'
-                ? 'grid-outline'
-                : route.name === 'Calendar'
-                  ? 'calendar-outline'
-                  : route.name === 'Tasks'
-                    ? 'checkmark-done-outline'
-                    : route.name === 'Notes'
-                      ? 'document-text-outline'
-                      : route.name === 'Grades'
-                        ? 'calculator-outline'
-                        : route.name === 'Widgets'
-                          ? 'apps-outline'
-                          : 'options-outline';
-            return <Ionicons name={iconName as any} size={size} color={color} />;
+          tabBarIcon: ({ color, size, focused }) => {
+            const baseName = TAB_ICONS[route.name] ?? 'ellipse';
+            const iconName = focused ? baseName : `${baseName}-outline`;
+            return <Ionicons name={iconName as any} size={focused ? size + 1 : size} color={color} />;
           },
         })}
       >

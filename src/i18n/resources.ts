@@ -20,6 +20,10 @@ export const resources = {
         notesCount: 'Notes',
         syncNow: 'Sync calendar now',
         syncedAt: 'Last synced',
+        goodMorning: 'Good morning',
+        goodAfternoon: 'Good afternoon',
+        goodEvening: 'Good evening',
+        goodNight: 'Good night',
       },
       calendar: {
         title: 'School Calendar',
@@ -150,6 +154,7 @@ export const resources = {
         previewHint: 'Theme, card style, compact mode and font size update immediately.',
         saveAndSync: 'Save and sync now',
         save: 'Save settings',
+        preferences: 'Preferences',
       },
       common: {
         cancel: 'Cancel',
@@ -179,6 +184,10 @@ export const resources = {
         notesCount: 'Notizen',
         syncNow: 'Kalender jetzt synchronisieren',
         syncedAt: 'Zuletzt synchronisiert',
+        goodMorning: 'Guten Morgen',
+        goodAfternoon: 'Guten Nachmittag',
+        goodEvening: 'Guten Abend',
+        goodNight: 'Gute Nacht',
       },
       calendar: {
         title: 'Schulkalender',
@@ -311,6 +320,7 @@ export const resources = {
         previewHint: 'Design, Kartenstil, kompakter Modus und Schriftgröße werden sofort aktualisiert.',
         saveAndSync: 'Speichern und jetzt synchronisieren',
         save: 'Einstellungen speichern',
+        preferences: 'Einstellungen',
       },
       common: {
         cancel: 'Abbrechen',

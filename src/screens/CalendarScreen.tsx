@@ -2,17 +2,24 @@ import React, { useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 import dayjs from 'dayjs';
+import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useAppContext } from '../context/AppContext';
-import SectionCard from '../components/SectionCard';
 import { CalendarEntryType, CalendarEvent } from '../types/models';
+import { shadows, spacing, radii } from '../theme/theme';
 
 type EntryFilter = 'all' | CalendarEntryType;
 type SortMode = 'time' | 'subject';
 
+const ENTRY_ICON: Record<CalendarEntryType, string> = {
+  exam: 'alert-circle',
+  lesson: 'book',
+  event: 'calendar',
+};
+
 export default function CalendarScreen() {
   const { t } = useTranslation();
-  const { data, colors, syncCalendar } = useAppContext();
+  const { data, colors, isDark, syncCalendar, fontScaleMultiplier } = useAppContext();
   const [selectedDate, setSelectedDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [refreshing, setRefreshing] = useState(false);
   const [entryFilter, setEntryFilter] = useState<EntryFilter>('all');
@@ -94,58 +101,99 @@ export default function CalendarScreen() {
   );
 
   function formatEntryType(entryType: CalendarEntryType) {
-    if (entryType === 'exam') {
-      return t('calendar.exams');
-    }
-    if (entryType === 'lesson') {
-      return t('calendar.lessons');
-    }
+    if (entryType === 'exam') return t('calendar.exams');
+    if (entryType === 'lesson') return t('calendar.lessons');
     return t('calendar.events');
   }
 
-  function renderEventBubble(event: CalendarEvent) {
+  function Chip({
+    label,
+    active,
+    onPress,
+  }: {
+    label: string;
+    active: boolean;
+    onPress: () => void;
+  }) {
     return (
-      <View key={`${event.id}_${event.start}`} style={[styles.eventBubble, { borderColor: colors.border }]}> 
-        <View style={styles.eventTopRow}>
-          <Text style={[styles.eventTitle, { color: colors.text }]}>{event.title}</Text>
-          <View
-            style={[
-              styles.typeBadge,
-              { backgroundColor: event.entryType === 'exam' ? '#EF444422' : `${colors.accent}22` },
-            ]}
-          >
-            <Text
-              style={{
-                color: event.entryType === 'exam' ? '#EF4444' : colors.accent,
-                fontWeight: '700',
-                fontSize: 11,
-              }}
-            >
-              {formatEntryType(event.entryType)}
-            </Text>
-          </View>
+      <Pressable
+        onPress={onPress}
+        style={[
+          styles.chip,
+          {
+            backgroundColor: active ? `${colors.accent}18` : 'transparent',
+            borderColor: active ? colors.accent : isDark ? '#334155' : '#E2E8F0',
+          },
+        ]}
+      >
+        <Text
+          style={{
+            color: active ? colors.accent : colors.text,
+            fontWeight: active ? '800' : '600',
+            fontSize: 13,
+          }}
+        >
+          {label}
+        </Text>
+      </Pressable>
+    );
+  }
+
+  function renderEventCard(event: CalendarEvent) {
+    const isExam = event.entryType === 'exam';
+    const accentColor = isExam ? '#EF4444' : colors.accent;
+
+    return (
+      <Pressable
+        key={`${event.id}_${event.start}`}
+        style={({ pressed }) => [
+          styles.eventCard,
+          shadows.sm,
+          {
+            backgroundColor: colors.card,
+            borderLeftColor: accentColor,
+            opacity: pressed ? 0.92 : 1,
+            transform: [{ scale: pressed ? 0.985 : 1 }],
+          },
+        ]}
+      >
+        <View style={styles.eventHeader}>
+          <Ionicons
+            name={(ENTRY_ICON[event.entryType] ?? 'calendar') as any}
+            size={18}
+            color={accentColor}
+            style={{ marginRight: 8 }}
+          />
+          <Text style={[styles.eventTitle, { color: colors.text, fontSize: 15 * fontScaleMultiplier }]} numberOfLines={1}>
+            {event.title}
+          </Text>
+          {isExam ? (
+            <View style={styles.examPill}>
+              <Text style={styles.examPillText}>{t('calendar.exams')}</Text>
+            </View>
+          ) : null}
         </View>
 
-        <View style={styles.chipsRow}>
-          <View style={[styles.chip, { borderColor: colors.border }]}>
-            <Text style={{ color: colors.subtle, fontWeight: '700' }}>
-              {dayjs(event.start).format('HH:mm')} - {dayjs(event.end).format('HH:mm')}
-            </Text>
-          </View>
-
+        <View style={styles.eventMeta}>
+          <Ionicons name="time-outline" size={13} color={colors.subtle} />
+          <Text style={[styles.eventMetaText, { color: colors.subtle }]}>
+            {dayjs(event.start).format('HH:mm')} – {dayjs(event.end).format('HH:mm')}
+          </Text>
           {event.subject ? (
-            <View style={[styles.chip, { borderColor: colors.border }]}> 
-              <Text style={{ color: colors.text, fontWeight: '700' }}>{event.subject}</Text>
-            </View>
+            <>
+              <View style={[styles.metaDot, { backgroundColor: colors.subtle }]} />
+              <Text style={[styles.eventMetaText, { color: colors.text, fontWeight: '700' }]}>{event.subject}</Text>
+            </>
           ) : null}
-
           {event.location ? (
-            <View style={[styles.chip, { borderColor: colors.border }]}> 
-              <Text style={{ color: colors.subtle, fontWeight: '700' }}>{event.location}</Text>
-            </View>
+            <>
+              <View style={[styles.metaDot, { backgroundColor: colors.subtle }]} />
+              <Ionicons name="location-outline" size={13} color={colors.subtle} />
+              <Text style={[styles.eventMetaText, { color: colors.subtle }]}>{event.location}</Text>
+            </>
           ) : null}
         </View>
-      </View>
+      </Pressable>
     );
   }
 
@@ -164,9 +212,8 @@ export default function CalendarScreen() {
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
     >
-      <Text style={[styles.hint, { color: colors.subtle }]}>{t('calendar.pullToSync')}</Text>
-
-      <View style={[styles.calendarWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      {/* ── Calendar ───────────────────────────── */}
+      <View style={[styles.calendarWrap, shadows.md, { backgroundColor: colors.card }]}>
         <Calendar
           onDayPress={(day) => setSelectedDate(day.dateString)}
           markedDates={marks}
@@ -175,219 +222,194 @@ export default function CalendarScreen() {
             calendarBackground: colors.card,
             dayTextColor: colors.text,
             monthTextColor: colors.text,
-            textMonthFontWeight: '700',
+            textMonthFontWeight: '800',
+            textMonthFontSize: 16,
             textDayHeaderFontWeight: '700',
             todayTextColor: colors.accent,
             arrowColor: colors.accent,
+            textDayFontWeight: '500',
           }}
         />
       </View>
 
-      <SectionCard
-        title={dayjs(selectedDate).format('dddd, DD MMMM')}
-        subtitle={t('calendar.title')}
-        background={colors.card}
-        textColor={colors.text}
-        borderColor={colors.border}
-        compact={data.settings.compactMode}
-      >
-        <View style={styles.filterRows}>
-          <View style={styles.rowWrap}>
-            {(['all', 'lesson', 'event', 'exam'] as EntryFilter[]).map((filterValue) => (
-              <Pressable
-                key={filterValue}
-                onPress={() => setEntryFilter(filterValue)}
-                style={[
-                  styles.filterChip,
-                  {
-                    borderColor: entryFilter === filterValue ? colors.accent : colors.border,
-                    backgroundColor: entryFilter === filterValue ? `${colors.accent}22` : 'transparent',
-                  },
-                ]}
-              >
-                <Text style={{ color: colors.text, fontWeight: '700' }}>
-                  {filterValue === 'all' ? t('calendar.all') : formatEntryType(filterValue)}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+      {/* ── Date heading ──────────────────────── */}
+      <Text style={[styles.dateHeading, { color: colors.text, fontSize: 20 * fontScaleMultiplier }]}>
+        {dayjs(selectedDate).format('dddd, DD MMMM')}
+      </Text>
 
-          <View style={styles.rowWrap}>
-            <Pressable
-              onPress={() => setSortMode('time')}
-              style={[
-                styles.filterChip,
-                {
-                  borderColor: sortMode === 'time' ? colors.accent : colors.border,
-                  backgroundColor: sortMode === 'time' ? `${colors.accent}22` : 'transparent',
-                },
-              ]}
-            >
-              <Text style={{ color: colors.text }}>{t('calendar.sortTime')}</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => setSortMode('subject')}
-              style={[
-                styles.filterChip,
-                {
-                  borderColor: sortMode === 'subject' ? colors.accent : colors.border,
-                  backgroundColor: sortMode === 'subject' ? `${colors.accent}22` : 'transparent',
-                },
-              ]}
-            >
-              <Text style={{ color: colors.text }}>{t('calendar.sortSubject')}</Text>
-            </Pressable>
-          </View>
+      {/* ── Filters ────────────────────────────── */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipScroll}>
+        {(['all', 'lesson', 'event', 'exam'] as EntryFilter[]).map((f) => (
+          <Chip
+            key={f}
+            label={f === 'all' ? t('calendar.all') : formatEntryType(f)}
+            active={entryFilter === f}
+            onPress={() => setEntryFilter(f)}
+          />
+        ))}
+        <View style={styles.chipDivider} />
+        <Chip label={t('calendar.sortTime')} active={sortMode === 'time'} onPress={() => setSortMode('time')} />
+        <Chip label={t('calendar.sortSubject')} active={sortMode === 'subject'} onPress={() => setSortMode('subject')} />
+      </ScrollView>
 
-          <View style={styles.rowWrap}>
-            <Pressable
-              onPress={() => setSubjectFilter('all')}
-              style={[
-                styles.filterChip,
-                {
-                  borderColor: subjectFilter === 'all' ? colors.accent : colors.border,
-                  backgroundColor: subjectFilter === 'all' ? `${colors.accent}22` : 'transparent',
-                },
-              ]}
-            >
-              <Text style={{ color: colors.text }}>{t('calendar.allSubjects')}</Text>
-            </Pressable>
-            {subjectsForDate.map((subject) => (
-              <Pressable
-                key={subject}
-                onPress={() => setSubjectFilter(subject)}
-                style={[
-                  styles.filterChip,
-                  {
-                    borderColor: subjectFilter === subject ? colors.accent : colors.border,
-                    backgroundColor: subjectFilter === subject ? `${colors.accent}22` : 'transparent',
-                  },
-                ]}
-              >
-                <Text style={{ color: colors.text }}>{subject}</Text>
-              </Pressable>
-            ))}
-          </View>
+      {subjectsForDate.length > 0 ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipScroll}>
+          <Chip label={t('calendar.allSubjects')} active={subjectFilter === 'all'} onPress={() => setSubjectFilter('all')} />
+          {subjectsForDate.map((subject) => (
+            <Chip key={subject} label={subject} active={subjectFilter === subject} onPress={() => setSubjectFilter(subject)} />
+          ))}
+        </ScrollView>
+      ) : null}
+
+      {/* ── Day Events ────────────────────────── */}
+      {dayEvents.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Ionicons name="calendar-outline" size={32} color={colors.subtle} />
+          <Text style={{ color: colors.subtle, marginTop: 8, fontWeight: '600' }}>{t('calendar.noEvents')}</Text>
         </View>
+      ) : (
+        dayEvents.map((event) => renderEventCard(event))
+      )}
 
-        {dayEvents.length === 0 ? (
-          <Text style={{ color: colors.subtle }}>{t('calendar.noEvents')}</Text>
-        ) : (
-          dayEvents.map((event) => renderEventBubble(event))
-        )}
-      </SectionCard>
+      {/* ── Upcoming Exams ────────────────────── */}
+      <Text style={[styles.sectionTitle, { color: colors.text, fontSize: 18 * fontScaleMultiplier }]}>
+        {t('calendar.nextExams')} ({upcomingExams.length})
+      </Text>
+      {upcomingExams.length === 0 ? (
+        <Text style={{ color: colors.subtle, paddingHorizontal: 4 }}>{t('calendar.noUpcoming')}</Text>
+      ) : (
+        upcomingExams.slice(0, 12).map((exam) => renderEventCard(exam))
+      )}
 
-      <SectionCard
-        title={t('calendar.nextExams')}
-        subtitle={`${upcomingExams.length}`}
-        background={colors.card}
-        textColor={colors.text}
-        borderColor={colors.border}
-        compact={data.settings.compactMode}
+      {/* ── Past exams toggle ─────────────────── */}
+      <Pressable
+        onPress={() => setShowPastExams((prev) => !prev)}
+        style={({ pressed }) => [
+          styles.toggleBtn,
+          shadows.sm,
+          {
+            backgroundColor: colors.card,
+            opacity: pressed ? 0.85 : 1,
+          },
+        ]}
       >
-        {upcomingExams.length === 0 ? <Text style={{ color: colors.subtle }}>{t('calendar.noUpcoming')}</Text> : null}
-        {upcomingExams.slice(0, 12).map((exam) => renderEventBubble(exam))}
+        <Ionicons
+          name={showPastExams ? 'chevron-up-outline' : 'chevron-down-outline'}
+          size={18}
+          color={colors.accent}
+        />
+        <Text style={{ color: colors.text, fontWeight: '700', marginLeft: 8 }}>
+          {showPastExams ? t('calendar.hidePastExams') : t('calendar.showPastExams')}
+        </Text>
+      </Pressable>
 
-        <Pressable
-          onPress={() => setShowPastExams((previous) => !previous)}
-          style={[styles.togglePastBtn, { borderColor: colors.border }]}
-        >
-          <Text style={{ color: colors.text, fontWeight: '700' }}>
-            {showPastExams ? t('calendar.hidePastExams') : t('calendar.showPastExams')}
+      {showPastExams ? (
+        <View>
+          <Text style={[styles.sectionTitle, { color: colors.text, fontSize: 16 * fontScaleMultiplier }]}>
+            {t('calendar.pastExams')}
           </Text>
-        </Pressable>
-
-        {showPastExams ? (
-          <View style={[styles.pastExamsWrap, { borderColor: colors.border }]}>
-            <Text style={[styles.pastExamsTitle, { color: colors.text }]}>{t('calendar.pastExams')}</Text>
-            <ScrollView nestedScrollEnabled style={{ maxHeight: 280 }}>
-              {pastExams.length === 0 ? <Text style={{ color: colors.subtle }}>{t('calendar.nonePastExams')}</Text> : null}
-              {pastExams.map((exam) => renderEventBubble(exam))}
-            </ScrollView>
-          </View>
-        ) : null}
-      </SectionCard>
+          {pastExams.length === 0 ? (
+            <Text style={{ color: colors.subtle }}>{t('calendar.nonePastExams')}</Text>
+          ) : (
+            pastExams.map((exam) => renderEventCard(exam))
+          )}
+        </View>
+      ) : null}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   content: {
-    padding: 16,
-    gap: 12,
-  },
-  hint: {
-    fontSize: 12,
-    marginBottom: -6,
+    padding: spacing.md,
+    paddingTop: spacing.xxl,
+    paddingBottom: spacing.xl,
+    gap: spacing.sm + 4,
   },
   calendarWrap: {
-    borderWidth: 1,
-    borderRadius: 18,
+    borderRadius: radii.lg,
     overflow: 'hidden',
+    marginBottom: spacing.sm,
   },
-  filterRows: {
-    gap: 8,
-    marginBottom: 8,
+  dateHeading: {
+    fontWeight: '900',
+    letterSpacing: -0.5,
+    marginTop: spacing.sm,
   },
-  rowWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
+  chipScroll: {
+    gap: spacing.sm,
+    paddingVertical: 2,
   },
-  filterChip: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+  chip: {
+    borderWidth: 1.5,
+    borderRadius: radii.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
   },
-  eventBubble: {
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 10,
-    marginBottom: 10,
-    gap: 8,
+  chipDivider: {
+    width: 1,
+    backgroundColor: '#94A3B8',
+    opacity: 0.3,
+    marginHorizontal: 2,
   },
-  eventTopRow: {
+  eventCard: {
+    borderRadius: radii.md,
+    padding: spacing.sm + 4,
+    borderLeftWidth: 4,
+    gap: 6,
+  },
+  eventHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
   },
   eventTitle: {
     fontWeight: '800',
     flex: 1,
+    letterSpacing: -0.2,
   },
-  typeBadge: {
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+  examPill: {
+    backgroundColor: '#FEE2E2',
+    borderRadius: radii.pill,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    marginLeft: 6,
   },
-  chipsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  chip: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-  },
-  togglePastBtn: {
-    borderWidth: 1,
-    borderRadius: 12,
-    alignItems: 'center',
-    paddingVertical: 10,
-    marginTop: 2,
-  },
-  pastExamsWrap: {
-    borderWidth: 1,
-    borderRadius: 12,
-    marginTop: 8,
-    padding: 10,
-  },
-  pastExamsTitle: {
+  examPillText: {
+    color: '#EF4444',
     fontWeight: '800',
-    marginBottom: 8,
+    fontSize: 10,
+    textTransform: 'uppercase',
+  },
+  eventMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    flexWrap: 'wrap',
+  },
+  eventMetaText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  metaDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 2,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: spacing.lg,
+  },
+  sectionTitle: {
+    fontWeight: '900',
+    letterSpacing: -0.3,
+    marginTop: spacing.md,
+  },
+  toggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radii.md,
+    paddingVertical: 12,
+    marginTop: spacing.sm,
   },
 });

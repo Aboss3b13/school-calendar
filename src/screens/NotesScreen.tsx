@@ -14,12 +14,14 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import SignatureScreen from 'react-native-signature-canvas';
 import dayjs from 'dayjs';
 import { useAppContext } from '../context/AppContext';
 import { NoteChecklistItem, NoteType } from '../types/models';
 import InfoWidget from '../components/InfoWidget';
+import { shadows, spacing, radii } from '../theme/theme';
 
 type NotesSortMode = 'recent' | 'title';
 type NoteTypeFilter = 'all' | NoteType;
@@ -39,6 +41,7 @@ export default function NotesScreen() {
   const {
     data,
     colors,
+    isDark,
     addNote,
     togglePinNote,
     toggleFavoriteNote,
@@ -68,22 +71,24 @@ export default function NotesScreen() {
   const [typeFilter, setTypeFilter] = useState<NoteTypeFilter>('all');
 
   const signatureRef = useRef<any>(null);
-  const panelFade = useRef(new Animated.Value(0)).current;
+  const fadeIn = useRef(new Animated.Value(0)).current;
   const { width } = useWindowDimensions();
+
+  const borderCol = isDark ? '#334155' : '#E2E8F0';
 
   useEffect(() => {
     if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
       UIManager.setLayoutAnimationEnabledExperimental(true);
     }
 
-    Animated.timing(panelFade, {
+    Animated.timing(fadeIn, {
       toValue: 1,
-      duration: 280,
+      duration: 320,
       useNativeDriver: true,
     }).start();
-  }, [panelFade]);
+  }, [fadeIn]);
 
-  function animateLayout() {
+  function animate() {
     if (data.settings.animationsEnabled) {
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     }
@@ -106,46 +111,32 @@ export default function NotesScreen() {
   );
 
   const filteredNotes = useMemo(() => {
-    const normalizedQuery = searchTerm.trim().toLowerCase();
+    const q = searchTerm.trim().toLowerCase();
     const notes = data.notes.filter((note) => {
       const notebookMatch = selectedNotebook === 'all' || (note.notebook ?? 'School') === selectedNotebook;
       const pinnedMatch = !pinnedOnly || note.pinned;
-      const favoriteMatch = !favoriteOnly || note.favorite;
+      const favMatch = !favoriteOnly || note.favorite;
       const typeMatch = typeFilter === 'all' || note.type === typeFilter;
       const queryMatch =
-        !normalizedQuery ||
-        [
-          note.title,
-          note.content,
-          note.tags.join(' '),
-          note.notebook ?? '',
-          note.section ?? '',
-          (note.checklist ?? []).map((item) => item.text).join(' '),
-        ]
+        !q ||
+        [note.title, note.content, note.tags.join(' '), note.notebook ?? '', note.section ?? '', (note.checklist ?? []).map((i) => i.text).join(' ')]
           .join(' ')
           .toLowerCase()
-          .includes(normalizedQuery);
-
-      return notebookMatch && pinnedMatch && favoriteMatch && typeMatch && queryMatch;
+          .includes(q);
+      return notebookMatch && pinnedMatch && favMatch && typeMatch && queryMatch;
     });
 
-    return notes.sort((left, right) => {
-      if (left.pinned !== right.pinned) {
-        return Number(right.pinned) - Number(left.pinned);
-      }
-      if (sortMode === 'title') {
-        return left.title.localeCompare(right.title);
-      }
-      return dayjs(right.updatedAt).valueOf() - dayjs(left.updatedAt).valueOf();
+    return notes.sort((a, b) => {
+      if (a.pinned !== b.pinned) return Number(b.pinned) - Number(a.pinned);
+      if (sortMode === 'title') return a.title.localeCompare(b.title);
+      return dayjs(b.updatedAt).valueOf() - dayjs(a.updatedAt).valueOf();
     });
   }, [data.notes, selectedNotebook, searchTerm, sortMode, pinnedOnly, favoriteOnly, typeFilter]);
 
   const notesBySection = useMemo(() => {
     return filteredNotes.reduce<Record<string, typeof filteredNotes>>((acc, note) => {
       const key = note.section ?? 'General';
-      if (!acc[key]) {
-        acc[key] = [];
-      }
+      if (!acc[key]) acc[key] = [];
       acc[key].push(note);
       return acc;
     }, {});
@@ -168,7 +159,7 @@ export default function NotesScreen() {
   }
 
   function applyTemplate(template: 'lecture' | 'exam' | 'brainstorm') {
-    animateLayout();
+    animate();
 
     if (template === 'lecture') {
       setNotebook('School');
@@ -199,23 +190,19 @@ export default function NotesScreen() {
   }
 
   function addDraftChecklistItem() {
-    if (!checklistInput.trim()) {
-      return;
-    }
-    animateLayout();
+    if (!checklistInput.trim()) return;
+    animate();
     setDraftChecklist((prev) => [createChecklistItem(checklistInput.trim()), ...prev]);
     setChecklistInput('');
   }
 
   function removeDraftChecklistItem(itemId: string) {
-    animateLayout();
+    animate();
     setDraftChecklist((prev) => prev.filter((item) => item.id !== itemId));
   }
 
   function save() {
-    if (!title.trim()) {
-      return;
-    }
+    if (!title.trim()) return;
 
     const type: NoteType = inkData && content.trim() ? 'mixed' : inkData ? 'ink' : 'typed';
 
@@ -223,10 +210,7 @@ export default function NotesScreen() {
       title: title.trim(),
       content: content.trim(),
       inkDataUrl: inkData,
-      tags: tags
-        .split(',')
-        .map((item) => item.trim())
-        .filter(Boolean),
+      tags: tags.split(',').map((i) => i.trim()).filter(Boolean),
       pinned,
       favorite,
       type,
@@ -240,186 +224,117 @@ export default function NotesScreen() {
     setModalVisible(false);
   }
 
+  /* ── Chip helper ─────────────────────────────── */
+  function Chip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+    return (
+      <Pressable
+        onPress={onPress}
+        style={[
+          styles.chip,
+          {
+            backgroundColor: active ? `${colors.accent}18` : 'transparent',
+            borderColor: active ? colors.accent : borderCol,
+          },
+        ]}
+      >
+        <Text style={{ color: active ? colors.accent : colors.text, fontWeight: active ? '800' : '600', fontSize: 13 }}>
+          {label}
+        </Text>
+      </Pressable>
+    );
+  }
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Pressable onPress={() => setModalVisible(true)} style={[styles.addBtn, { backgroundColor: colors.accent }]}> 
-          <Text style={styles.addText}>{t('notes.addNote')}</Text>
-        </Pressable>
+        {/* ── Header ──────────────────────────── */}
+        <View style={styles.screenHeader}>
+          <Text style={[styles.pageTitle, { color: colors.text, fontSize: 24 * fontScaleMultiplier }]}>
+            {t('notes.title')}
+          </Text>
+          <Pressable
+            onPress={() => setModalVisible(true)}
+            style={({ pressed }) => [
+              styles.fabBtn,
+              { backgroundColor: colors.accent, opacity: pressed ? 0.88 : 1 },
+            ]}
+          >
+            <Ionicons name="add" size={22} color="#fff" />
+          </Pressable>
+        </View>
 
-        <Animated.View style={{ opacity: panelFade }}>
-          <View style={styles.widgetsHeader}>
-            <Text style={[styles.widgetsTitle, { color: colors.text, fontSize: 16 * fontScaleMultiplier }]}>
-              {t('notes.widgets')}
-            </Text>
-          </View>
-          <View style={styles.widgetsRow}>
-            <InfoWidget
-              title={t('notes.notebooksCount')}
-              value={notebooks.length}
-              accent={colors.accent}
-              textColor={colors.text}
-              subtleColor={colors.subtle}
-              background={colors.card}
-              borderColor={colors.border}
-            />
-            <InfoWidget
-              title={t('notes.sectionsCount')}
-              value={sections.length}
-              accent={colors.accent}
-              textColor={colors.text}
-              subtleColor={colors.subtle}
-              background={colors.card}
-              borderColor={colors.border}
-            />
-            <InfoWidget
-              title={t('notes.pinnedCount')}
-              value={data.notes.filter((note) => note.pinned).length}
-              accent={colors.accent}
-              textColor={colors.text}
-              subtleColor={colors.subtle}
-              background={colors.card}
-              borderColor={colors.border}
-            />
-          </View>
+        {/* ── Stat Widgets ────────────────────── */}
+        <Animated.View style={[styles.widgetsRow, { opacity: fadeIn }]}>
+          <InfoWidget
+            title={t('notes.notebooksCount')}
+            value={notebooks.length}
+            accent={colors.accent}
+            textColor={colors.text}
+            subtleColor={colors.subtle}
+            background={colors.card}
+            borderColor={colors.border}
+          />
+          <InfoWidget
+            title={t('notes.sectionsCount')}
+            value={sections.length}
+            accent={colors.accent}
+            textColor={colors.text}
+            subtleColor={colors.subtle}
+            background={colors.card}
+            borderColor={colors.border}
+          />
+          <InfoWidget
+            title={t('notes.pinnedCount')}
+            value={data.notes.filter((n) => n.pinned).length}
+            accent={colors.accent}
+            textColor={colors.text}
+            subtleColor={colors.subtle}
+            background={colors.card}
+            borderColor={colors.border}
+          />
         </Animated.View>
 
-        <View style={[styles.controlsCard, { backgroundColor: colors.card, borderColor: colors.border }]}> 
+        {/* ── Search + Filters ────────────────── */}
+        <View style={[styles.searchWrap, shadows.sm, { backgroundColor: colors.card }]}>
+          <Ionicons name="search-outline" size={18} color={colors.subtle} style={{ marginRight: 8 }} />
           <TextInput
             value={searchTerm}
             onChangeText={setSearchTerm}
             placeholder={t('notes.search')}
             placeholderTextColor={colors.subtle}
-            style={[styles.input, { borderColor: colors.border, color: colors.text }]}
+            style={[styles.searchInput, { color: colors.text }]}
           />
-
-          <View style={styles.filterRowWrap}>
-            <Pressable
-              onPress={() => {
-                animateLayout();
-                setSortMode('recent');
-              }}
-              style={[
-                styles.filterChip,
-                {
-                  borderColor: sortMode === 'recent' ? colors.accent : colors.border,
-                  backgroundColor: sortMode === 'recent' ? `${colors.accent}22` : 'transparent',
-                },
-              ]}
-            >
-              <Text style={{ color: colors.text }}>{t('notes.sortRecent')}</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => {
-                animateLayout();
-                setSortMode('title');
-              }}
-              style={[
-                styles.filterChip,
-                {
-                  borderColor: sortMode === 'title' ? colors.accent : colors.border,
-                  backgroundColor: sortMode === 'title' ? `${colors.accent}22` : 'transparent',
-                },
-              ]}
-            >
-              <Text style={{ color: colors.text }}>{t('notes.sortTitle')}</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => {
-                animateLayout();
-                setPinnedOnly((value) => !value);
-              }}
-              style={[
-                styles.filterChip,
-                {
-                  borderColor: pinnedOnly ? colors.accent : colors.border,
-                  backgroundColor: pinnedOnly ? `${colors.accent}22` : 'transparent',
-                },
-              ]}
-            >
-              <Text style={{ color: colors.text }}>{t('notes.pinnedOnly')}</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => {
-                animateLayout();
-                setFavoriteOnly((value) => !value);
-              }}
-              style={[
-                styles.filterChip,
-                {
-                  borderColor: favoriteOnly ? colors.accent : colors.border,
-                  backgroundColor: favoriteOnly ? `${colors.accent}22` : 'transparent',
-                },
-              ]}
-            >
-              <Text style={{ color: colors.text }}>{t('notes.favorite')}</Text>
-            </Pressable>
-          </View>
-
-          <View style={styles.filterRowWrap}>
-            {(['all', 'typed', 'ink', 'mixed'] as NoteTypeFilter[]).map((type) => (
-              <Pressable
-                key={type}
-                onPress={() => {
-                  animateLayout();
-                  setTypeFilter(type);
-                }}
-                style={[
-                  styles.filterChip,
-                  {
-                    borderColor: typeFilter === type ? colors.accent : colors.border,
-                    backgroundColor: typeFilter === type ? `${colors.accent}22` : 'transparent',
-                  },
-                ]}
-              >
-                <Text style={{ color: colors.text }}>{type}</Text>
-              </Pressable>
-            ))}
-          </View>
-
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.notebookChipRow}>
-            <Pressable
-              onPress={() => {
-                animateLayout();
-                setSelectedNotebook('all');
-              }}
-              style={[
-                styles.filterChip,
-                {
-                  borderColor: selectedNotebook === 'all' ? colors.accent : colors.border,
-                  backgroundColor: selectedNotebook === 'all' ? `${colors.accent}22` : 'transparent',
-                },
-              ]}
-            >
-              <Text style={{ color: colors.text }}>{t('notes.allNotebooks')}</Text>
-            </Pressable>
-            {notebooks.map((item) => (
-              <Pressable
-                key={item}
-                onPress={() => {
-                  animateLayout();
-                  setSelectedNotebook(item);
-                }}
-                style={[
-                  styles.filterChip,
-                  {
-                    borderColor: selectedNotebook === item ? colors.accent : colors.border,
-                    backgroundColor: selectedNotebook === item ? `${colors.accent}22` : 'transparent',
-                  },
-                ]}
-              >
-                <Text style={{ color: colors.text }}>{item}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
         </View>
 
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+          <Chip label={t('notes.sortRecent')} active={sortMode === 'recent'} onPress={() => { animate(); setSortMode('recent'); }} />
+          <Chip label={t('notes.sortTitle')} active={sortMode === 'title'} onPress={() => { animate(); setSortMode('title'); }} />
+          <View style={styles.chipDivider} />
+          <Chip label={t('notes.pinnedOnly')} active={pinnedOnly} onPress={() => { animate(); setPinnedOnly((v) => !v); }} />
+          <Chip label={t('notes.favorite')} active={favoriteOnly} onPress={() => { animate(); setFavoriteOnly((v) => !v); }} />
+        </ScrollView>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+          {(['all', 'typed', 'ink', 'mixed'] as NoteTypeFilter[]).map((tp) => (
+            <Chip key={tp} label={tp === 'all' ? 'All' : tp} active={typeFilter === tp} onPress={() => { animate(); setTypeFilter(tp); }} />
+          ))}
+          <View style={styles.chipDivider} />
+          <Chip label={t('notes.allNotebooks')} active={selectedNotebook === 'all'} onPress={() => { animate(); setSelectedNotebook('all'); }} />
+          {notebooks.map((nb) => (
+            <Chip key={nb} label={nb} active={selectedNotebook === nb} onPress={() => { animate(); setSelectedNotebook(nb); }} />
+          ))}
+        </ScrollView>
+
+        {/* ── Notes Grid ──────────────────────── */}
         {filteredNotes.length === 0 ? (
-          <Text style={{ color: colors.subtle, paddingHorizontal: 4 }}>{t('notes.noNotes')}</Text>
+          <View style={styles.emptyState}>
+            <Ionicons name="document-text-outline" size={40} color={colors.subtle} />
+            <Text style={{ color: colors.subtle, marginTop: 10, fontWeight: '600' }}>{t('notes.noNotes')}</Text>
+          </View>
         ) : (
           Object.entries(notesBySection).map(([sectionName, sectionNotes]) => (
             <View key={sectionName} style={styles.sectionBlock}>
-              <Text style={[styles.sectionTitle, { color: colors.text, fontSize: 16 * fontScaleMultiplier }]}>
+              <Text style={[styles.sectionTitle, { color: colors.text, fontSize: 17 * fontScaleMultiplier }]}>
                 {sectionName}
               </Text>
               <View style={styles.notesGrid}>
@@ -428,75 +343,57 @@ export default function NotesScreen() {
                     key={note.id}
                     style={[
                       styles.noteCard,
+                      shadows.sm,
                       {
                         backgroundColor: colors.card,
-                        borderColor: colors.border,
                         width: `${100 / columns - (columns === 1 ? 0 : 2)}%`,
-                        borderLeftWidth: 5,
+                        borderLeftWidth: 4,
                         borderLeftColor: note.color ?? colors.accent,
                       },
                     ]}
                   >
                     <View style={styles.noteHeader}>
                       <View style={{ flex: 1 }}>
-                        <Text style={[styles.noteTitle, { color: colors.text, fontSize: 16 * fontScaleMultiplier }]}>
+                        <Text style={[styles.noteTitle, { color: colors.text, fontSize: 15 * fontScaleMultiplier }]} numberOfLines={1}>
                           {note.title}
                         </Text>
-                        <Text style={{ color: colors.subtle, fontSize: 12 * fontScaleMultiplier }}>
-                          {dayjs(note.updatedAt).format('DD.MM.YYYY HH:mm')} • {note.type}
+                        <Text style={{ color: colors.subtle, fontSize: 11 }}>
+                          {dayjs(note.updatedAt).format('DD.MM.YY HH:mm')} · {note.type}
                         </Text>
                       </View>
                       <View style={styles.noteActionRow}>
-                        <Pressable
-                          onPress={() => {
-                            animateLayout();
-                            toggleFavoriteNote(note.id);
-                          }}
-                          style={[styles.iconBtn, { borderColor: colors.border }]}
-                        >
-                          <Text>{note.favorite ? '⭐' : '☆'}</Text>
+                        <Pressable onPress={() => { animate(); toggleFavoriteNote(note.id); }} style={styles.iconBtn}>
+                          <Ionicons name={note.favorite ? 'star' : 'star-outline'} size={18} color={note.favorite ? '#F59E0B' : colors.subtle} />
                         </Pressable>
-                        <Pressable
-                          onPress={() => {
-                            animateLayout();
-                            togglePinNote(note.id);
-                          }}
-                          style={[styles.iconBtn, { borderColor: colors.border }]}
-                        >
-                          <Text>{note.pinned ? '📌' : '📍'}</Text>
+                        <Pressable onPress={() => { animate(); togglePinNote(note.id); }} style={styles.iconBtn}>
+                          <Ionicons name={note.pinned ? 'pin' : 'pin-outline'} size={18} color={note.pinned ? colors.accent : colors.subtle} />
                         </Pressable>
                       </View>
                     </View>
 
-                    <View style={styles.metaChipsRow}>
-                      <View style={[styles.metaChip, { borderColor: colors.border }]}> 
-                        <Text style={{ color: colors.subtle }}>{note.notebook ?? 'School'}</Text>
+                    <View style={styles.metaRow}>
+                      <View style={[styles.metaChip, { backgroundColor: `${note.color ?? colors.accent}15` }]}>
+                        <Text style={{ color: note.color ?? colors.accent, fontSize: 11, fontWeight: '700' }}>
+                          {note.notebook ?? 'School'}
+                        </Text>
                       </View>
-                      <View style={[styles.metaChip, { borderColor: colors.border }]}> 
-                        <Text style={{ color: colors.subtle }}>{note.section ?? 'General'}</Text>
+                      <View style={[styles.metaChip, { backgroundColor: isDark ? '#1E293B' : '#F1F5F9' }]}>
+                        <Text style={{ color: colors.subtle, fontSize: 11, fontWeight: '600' }}>{note.section ?? 'General'}</Text>
                       </View>
                     </View>
 
-                    {note.content ? <Text style={{ color: colors.text }}>{note.content}</Text> : null}
+                    {note.content ? (
+                      <Text style={{ color: colors.text, fontSize: 13, lineHeight: 19 }} numberOfLines={4}>
+                        {note.content}
+                      </Text>
+                    ) : null}
 
                     {(note.checklist ?? []).length > 0 ? (
                       <View style={styles.checklistWrap}>
                         {(note.checklist ?? []).map((item) => (
-                          <Pressable
-                            key={item.id}
-                            onPress={() => {
-                              animateLayout();
-                              toggleChecklistItem(note.id, item.id);
-                            }}
-                            style={styles.checkRow}
-                          >
-                            <Text style={{ color: colors.accent }}>{item.done ? '☑' : '☐'}</Text>
-                            <Text
-                              style={{
-                                color: colors.text,
-                                textDecorationLine: item.done ? 'line-through' : 'none',
-                              }}
-                            >
+                          <Pressable key={item.id} onPress={() => { animate(); toggleChecklistItem(note.id, item.id); }} style={styles.checkRow}>
+                            <Ionicons name={item.done ? 'checkbox' : 'square-outline'} size={18} color={item.done ? colors.accent : colors.subtle} />
+                            <Text style={{ color: colors.text, textDecorationLine: item.done ? 'line-through' : 'none', fontSize: 13, marginLeft: 6 }}>
                               {item.text}
                             </Text>
                           </Pressable>
@@ -504,19 +401,23 @@ export default function NotesScreen() {
                       </View>
                     ) : null}
 
-                    {note.inkDataUrl ? <Text style={{ color: colors.subtle }}>✍️ Handwriting attached</Text> : null}
+                    {note.inkDataUrl ? (
+                      <View style={styles.inkBadge}>
+                        <Ionicons name="brush-outline" size={14} color={colors.subtle} />
+                        <Text style={{ color: colors.subtle, fontSize: 12, marginLeft: 4 }}>Handwriting</Text>
+                      </View>
+                    ) : null}
+
                     {note.tags.length > 0 ? (
-                      <Text style={{ color: colors.subtle }}>#{note.tags.join(' #')}</Text>
+                      <Text style={{ color: colors.subtle, fontSize: 12 }}>#{note.tags.join(' #')}</Text>
                     ) : null}
 
                     <Pressable
-                      onPress={() => {
-                        animateLayout();
-                        deleteNote(note.id);
-                      }}
-                      style={[styles.deleteBtn, { borderColor: colors.border }]}
+                      onPress={() => { animate(); deleteNote(note.id); }}
+                      style={({ pressed }) => [styles.deleteBtn, { opacity: pressed ? 0.6 : 1 }]}
                     >
-                      <Text style={{ color: colors.text }}>{t('common.delete')}</Text>
+                      <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                      <Text style={{ color: '#EF4444', fontWeight: '700', fontSize: 12, marginLeft: 4 }}>{t('common.delete')}</Text>
                     </Pressable>
                   </View>
                 ))}
@@ -526,154 +427,181 @@ export default function NotesScreen() {
         )}
       </ScrollView>
 
+      {/* ── Modal ──────────────────────────────── */}
       <Modal visible={modalVisible} animationType="slide">
-        <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={styles.modalContent}>
-          <Text style={[styles.modalTitle, { color: colors.text, fontSize: 24 * fontScaleMultiplier }]}>{t('notes.title')}</Text>
-
-          <Text style={{ color: colors.text, fontWeight: '800' }}>{t('notes.templates')}</Text>
-          <View style={styles.filterRowWrap}>
-            <Pressable onPress={() => applyTemplate('lecture')} style={[styles.filterChip, { borderColor: colors.border }]}> 
-              <Text style={{ color: colors.text }}>{t('notes.templateLecture')}</Text>
-            </Pressable>
-            <Pressable onPress={() => applyTemplate('exam')} style={[styles.filterChip, { borderColor: colors.border }]}> 
-              <Text style={{ color: colors.text }}>{t('notes.templateExam')}</Text>
-            </Pressable>
-            <Pressable onPress={() => applyTemplate('brainstorm')} style={[styles.filterChip, { borderColor: colors.border }]}> 
-              <Text style={{ color: colors.text }}>{t('notes.templateBrainstorm')}</Text>
-            </Pressable>
-          </View>
-
-          <TextInput
-            value={title}
-            onChangeText={setTitle}
-            placeholder={t('notes.noteTitle')}
-            placeholderTextColor={colors.subtle}
-            style={[styles.input, { borderColor: colors.border, color: colors.text }]}
-          />
-
-          <View style={styles.modalGridRow}>
-            <TextInput
-              value={notebook}
-              onChangeText={setNotebook}
-              placeholder={t('notes.notebook')}
-              placeholderTextColor={colors.subtle}
-              style={[styles.input, styles.gridInput, { borderColor: colors.border, color: colors.text }]}
-            />
-            <TextInput
-              value={section}
-              onChangeText={setSection}
-              placeholder={t('notes.section')}
-              placeholderTextColor={colors.subtle}
-              style={[styles.input, styles.gridInput, { borderColor: colors.border, color: colors.text }]}
-            />
-          </View>
-
-          <TextInput
-            value={content}
-            onChangeText={setContent}
-            placeholder={t('notes.typedText')}
-            placeholderTextColor={colors.subtle}
-            style={[styles.input, styles.bigInput, { borderColor: colors.border, color: colors.text }]}
-            multiline
-          />
-
-          <TextInput
-            value={tags}
-            onChangeText={setTags}
-            placeholder={t('notes.tags')}
-            placeholderTextColor={colors.subtle}
-            style={[styles.input, { borderColor: colors.border, color: colors.text }]}
-          />
-
-          <Text style={{ color: colors.text, fontWeight: '800' }}>{t('notes.color')}</Text>
-          <View style={styles.colorRow}>
-            {noteColors.map((item) => (
-              <Pressable
-                key={item}
-                onPress={() => setNoteColor(item)}
-                style={[
-                  styles.colorDot,
-                  {
-                    backgroundColor: item,
-                    borderColor: noteColor === item ? colors.text : 'transparent',
-                    borderWidth: noteColor === item ? 2 : 0,
-                  },
-                ]}
-              />
-            ))}
-          </View>
-
-          <View style={styles.pinRow}>
-            <Text style={{ color: colors.text }}>{t('notes.pin')}</Text>
-            <Switch value={pinned} onValueChange={setPinned} trackColor={{ true: colors.accent }} />
-          </View>
-          <View style={styles.pinRow}>
-            <Text style={{ color: colors.text }}>{t('notes.favorite')}</Text>
-            <Switch value={favorite} onValueChange={setFavorite} trackColor={{ true: colors.accent }} />
-          </View>
-
-          <Text style={{ color: colors.text, fontWeight: '800' }}>{t('notes.checklist')}</Text>
-          <View style={styles.modalGridRow}>
-            <TextInput
-              value={checklistInput}
-              onChangeText={setChecklistInput}
-              placeholder={t('notes.newChecklistItem')}
-              placeholderTextColor={colors.subtle}
-              style={[styles.input, styles.gridInput, { borderColor: colors.border, color: colors.text }]}
-            />
-            <Pressable onPress={addDraftChecklistItem} style={[styles.secondaryBtn, { borderColor: colors.border }]}> 
-              <Text style={{ color: colors.text }}>{t('notes.addChecklistItem')}</Text>
-            </Pressable>
-          </View>
-
-          {draftChecklist.map((item) => (
-            <View key={item.id} style={[styles.draftRow, { borderColor: colors.border }]}> 
-              <Text style={{ color: colors.text, flex: 1 }}>{item.text}</Text>
-              <Pressable onPress={() => removeDraftChecklistItem(item.id)}>
-                <Text style={{ color: colors.text }}>✕</Text>
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
+          <ScrollView contentContainerStyle={styles.modalContent}>
+            {/* Modal header */}
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text, fontSize: 22 * fontScaleMultiplier }]}>
+                {t('notes.addNote')}
+              </Text>
+              <Pressable onPress={() => { resetForm(); setModalVisible(false); }}>
+                <Ionicons name="close-circle" size={28} color={colors.subtle} />
               </Pressable>
             </View>
-          ))}
 
-          <Text style={[styles.handwritingTitle, { color: colors.text }]}>{t('notes.handwriting')}</Text>
-          <View style={[styles.signatureWrap, { borderColor: colors.border, backgroundColor: colors.card }]}> 
-            <SignatureScreen
-              ref={signatureRef}
-              onOK={(value) => setInkData(value)}
-              onEmpty={() => setInkData(undefined)}
-              autoClear={false}
-              webStyle={`
-                .m-signature-pad--footer { display: none; }
-                body,html { height: 100%; }
-                .m-signature-pad { box-shadow: none; border: none; height: 100%; }
-              `}
+            {/* Templates */}
+            <Text style={[styles.label, { color: colors.text }]}>{t('notes.templates')}</Text>
+            <View style={styles.chipRow}>
+              <Pressable onPress={() => applyTemplate('lecture')} style={[styles.templateBtn, shadows.sm, { backgroundColor: colors.card }]}>
+                <Ionicons name="school-outline" size={16} color={colors.accent} />
+                <Text style={{ color: colors.text, fontWeight: '700', marginLeft: 6, fontSize: 13 }}>{t('notes.templateLecture')}</Text>
+              </Pressable>
+              <Pressable onPress={() => applyTemplate('exam')} style={[styles.templateBtn, shadows.sm, { backgroundColor: colors.card }]}>
+                <Ionicons name="document-text-outline" size={16} color={colors.accent} />
+                <Text style={{ color: colors.text, fontWeight: '700', marginLeft: 6, fontSize: 13 }}>{t('notes.templateExam')}</Text>
+              </Pressable>
+              <Pressable onPress={() => applyTemplate('brainstorm')} style={[styles.templateBtn, shadows.sm, { backgroundColor: colors.card }]}>
+                <Ionicons name="bulb-outline" size={16} color={colors.accent} />
+                <Text style={{ color: colors.text, fontWeight: '700', marginLeft: 6, fontSize: 13 }}>{t('notes.templateBrainstorm')}</Text>
+              </Pressable>
+            </View>
+
+            <TextInput
+              value={title}
+              onChangeText={setTitle}
+              placeholder={t('notes.noteTitle')}
+              placeholderTextColor={colors.subtle}
+              style={[styles.input, { borderColor: borderCol, color: colors.text, fontSize: 17, fontWeight: '700' }]}
             />
-          </View>
 
-          <View style={styles.rowBtns}>
-            <Pressable onPress={() => signatureRef.current?.clearSignature()} style={[styles.actionBtn, { borderColor: colors.border }]}> 
-              <Text style={{ color: colors.text }}>{t('notes.clearInk')}</Text>
-            </Pressable>
-            <Pressable onPress={() => signatureRef.current?.readSignature()} style={[styles.actionBtn, { borderColor: colors.border }]}> 
-              <Text style={{ color: colors.text }}>Capture Ink</Text>
-            </Pressable>
-          </View>
+            <View style={styles.row}>
+              <TextInput
+                value={notebook}
+                onChangeText={setNotebook}
+                placeholder={t('notes.notebook')}
+                placeholderTextColor={colors.subtle}
+                style={[styles.input, styles.flex1, { borderColor: borderCol, color: colors.text }]}
+              />
+              <TextInput
+                value={section}
+                onChangeText={setSection}
+                placeholder={t('notes.section')}
+                placeholderTextColor={colors.subtle}
+                style={[styles.input, styles.flex1, { borderColor: borderCol, color: colors.text }]}
+              />
+            </View>
 
-          <View style={styles.rowBtns}>
-            <Pressable
-              onPress={() => {
-                resetForm();
-                setModalVisible(false);
-              }}
-              style={[styles.actionBtn, { borderColor: colors.border }]}
-            >
-              <Text style={{ color: colors.text }}>{t('common.cancel')}</Text>
-            </Pressable>
-            <Pressable onPress={save} style={[styles.actionBtn, { backgroundColor: colors.accent, borderColor: colors.accent }]}> 
-              <Text style={{ color: '#fff', fontWeight: '700' }}>{t('notes.save')}</Text>
-            </Pressable>
-          </View>
-        </ScrollView>
+            <TextInput
+              value={content}
+              onChangeText={setContent}
+              placeholder={t('notes.typedText')}
+              placeholderTextColor={colors.subtle}
+              style={[styles.input, styles.bigInput, { borderColor: borderCol, color: colors.text }]}
+              multiline
+            />
+
+            <TextInput
+              value={tags}
+              onChangeText={setTags}
+              placeholder={t('notes.tags')}
+              placeholderTextColor={colors.subtle}
+              style={[styles.input, { borderColor: borderCol, color: colors.text }]}
+            />
+
+            {/* Color dots */}
+            <Text style={[styles.label, { color: colors.text }]}>{t('notes.color')}</Text>
+            <View style={styles.colorRow}>
+              {noteColors.map((c) => (
+                <Pressable
+                  key={c}
+                  onPress={() => setNoteColor(c)}
+                  style={[
+                    styles.colorDot,
+                    {
+                      backgroundColor: c,
+                      borderWidth: noteColor === c ? 3 : 0,
+                      borderColor: colors.text,
+                      transform: [{ scale: noteColor === c ? 1.15 : 1 }],
+                    },
+                  ]}
+                />
+              ))}
+            </View>
+
+            {/* Switches */}
+            <View style={styles.switchRow}>
+              <Text style={{ color: colors.text, fontWeight: '600' }}>{t('notes.pin')}</Text>
+              <Switch value={pinned} onValueChange={setPinned} trackColor={{ true: colors.accent }} />
+            </View>
+            <View style={styles.switchRow}>
+              <Text style={{ color: colors.text, fontWeight: '600' }}>{t('notes.favorite')}</Text>
+              <Switch value={favorite} onValueChange={setFavorite} trackColor={{ true: colors.accent }} />
+            </View>
+
+            {/* Checklist */}
+            <Text style={[styles.label, { color: colors.text }]}>{t('notes.checklist')}</Text>
+            <View style={styles.row}>
+              <TextInput
+                value={checklistInput}
+                onChangeText={setChecklistInput}
+                placeholder={t('notes.newChecklistItem')}
+                placeholderTextColor={colors.subtle}
+                style={[styles.input, styles.flex1, { borderColor: borderCol, color: colors.text }]}
+              />
+              <Pressable onPress={addDraftChecklistItem} style={[styles.iconCircle, { backgroundColor: colors.accent }]}>
+                <Ionicons name="add" size={20} color="#fff" />
+              </Pressable>
+            </View>
+
+            {draftChecklist.map((item) => (
+              <View key={item.id} style={[styles.draftRow, shadows.sm, { backgroundColor: colors.card }]}>
+                <Ionicons name="checkbox-outline" size={18} color={colors.accent} />
+                <Text style={{ color: colors.text, flex: 1, marginLeft: 8, fontSize: 14 }}>{item.text}</Text>
+                <Pressable onPress={() => removeDraftChecklistItem(item.id)}>
+                  <Ionicons name="close" size={18} color="#EF4444" />
+                </Pressable>
+              </View>
+            ))}
+
+            {/* Handwriting */}
+            <Text style={[styles.label, { color: colors.text }]}>{t('notes.handwriting')}</Text>
+            <View style={[styles.signatureWrap, shadows.sm, { backgroundColor: colors.card }]}>
+              <SignatureScreen
+                ref={signatureRef}
+                onOK={(value) => setInkData(value)}
+                onEmpty={() => setInkData(undefined)}
+                autoClear={false}
+                webStyle={`
+                  .m-signature-pad--footer { display: none; }
+                  body,html { height: 100%; }
+                  .m-signature-pad { box-shadow: none; border: none; height: 100%; }
+                `}
+              />
+            </View>
+
+            <View style={styles.row}>
+              <Pressable onPress={() => signatureRef.current?.clearSignature()} style={[styles.outlineBtn, { borderColor: borderCol }]}>
+                <Ionicons name="refresh-outline" size={16} color={colors.text} />
+                <Text style={{ color: colors.text, fontWeight: '700', marginLeft: 6 }}>{t('notes.clearInk')}</Text>
+              </Pressable>
+              <Pressable onPress={() => signatureRef.current?.readSignature()} style={[styles.outlineBtn, { borderColor: borderCol }]}>
+                <Ionicons name="camera-outline" size={16} color={colors.text} />
+                <Text style={{ color: colors.text, fontWeight: '700', marginLeft: 6 }}>Capture</Text>
+              </Pressable>
+            </View>
+
+            {/* Save / Cancel */}
+            <View style={[styles.row, { marginTop: spacing.sm }]}>
+              <Pressable
+                onPress={() => { resetForm(); setModalVisible(false); }}
+                style={[styles.outlineBtn, { borderColor: borderCol, flex: 1 }]}
+              >
+                <Text style={{ color: colors.text, fontWeight: '700' }}>{t('common.cancel')}</Text>
+              </Pressable>
+              <Pressable
+                onPress={save}
+                style={({ pressed }) => [
+                  styles.primaryBtn,
+                  { backgroundColor: colors.accent, flex: 1, opacity: pressed ? 0.88 : 1 },
+                ]}
+              >
+                <Text style={{ color: '#fff', fontWeight: '800' }}>{t('notes.save')}</Text>
+              </Pressable>
+            </View>
+          </ScrollView>
+        </View>
       </Modal>
     </View>
   );
@@ -681,186 +609,218 @@ export default function NotesScreen() {
 
 const styles = StyleSheet.create({
   content: {
-    padding: 16,
-    gap: 12,
-    paddingBottom: 30,
+    padding: spacing.md,
+    paddingTop: spacing.xxl,
+    paddingBottom: spacing.xl,
+    gap: spacing.sm + 2,
   },
-  addBtn: {
-    borderRadius: 14,
-    paddingVertical: 12,
+  screenHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: spacing.sm,
   },
-  addText: {
-    color: '#fff',
-    fontWeight: '800',
-    fontSize: 15,
+  pageTitle: {
+    fontWeight: '900',
+    letterSpacing: -0.5,
   },
-  widgetsHeader: {
-    marginTop: 4,
-  },
-  widgetsTitle: {
-    fontWeight: '800',
+  fabBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...((shadows.md) as any),
   },
   widgetsRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: spacing.sm,
   },
-  controlsCard: {
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 10,
-    gap: 8,
+  searchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
+    marginTop: spacing.sm,
   },
-  filterRowWrap: {
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    paddingVertical: 0,
+  },
+  chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: spacing.sm,
   },
-  filterChip: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 10,
+  chip: {
+    borderWidth: 1.5,
+    borderRadius: radii.pill,
+    paddingHorizontal: 13,
     paddingVertical: 7,
   },
-  notebookChipRow: {
-    gap: 8,
+  chipDivider: {
+    width: 1,
+    backgroundColor: '#94A3B8',
+    opacity: 0.3,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: spacing.xxl,
   },
   sectionBlock: {
-    gap: 8,
+    gap: spacing.sm,
+    marginTop: spacing.sm,
   },
   sectionTitle: {
     fontWeight: '900',
+    letterSpacing: -0.3,
   },
   notesGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: spacing.sm + 2,
   },
   noteCard: {
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 12,
-    gap: 8,
+    borderRadius: radii.md,
+    padding: spacing.sm + 4,
+    gap: spacing.sm,
   },
   noteHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.sm,
   },
   noteActionRow: {
     flexDirection: 'row',
-    gap: 6,
+    gap: 4,
   },
   iconBtn: {
-    borderWidth: 1,
-    borderRadius: 10,
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
+    padding: 4,
   },
   noteTitle: {
     fontWeight: '800',
+    letterSpacing: -0.2,
   },
-  metaChipsRow: {
+  metaRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
   },
   metaChip: {
-    borderWidth: 1,
-    borderRadius: 999,
+    borderRadius: radii.pill,
     paddingHorizontal: 8,
-    paddingVertical: 5,
+    paddingVertical: 3,
   },
   checklistWrap: {
-    gap: 6,
+    gap: 5,
   },
   checkRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+  },
+  inkBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   deleteBtn: {
-    borderWidth: 1,
-    borderRadius: 10,
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
+    justifyContent: 'center',
+    paddingVertical: 6,
   },
+  /* Modal */
   modalContent: {
-    padding: 16,
-    gap: 12,
-    paddingBottom: 30,
+    padding: spacing.md,
+    paddingTop: spacing.xxl,
+    gap: spacing.sm + 4,
+    paddingBottom: spacing.xl,
   },
-  modalTitle: {
-    fontWeight: '800',
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  modalGridRow: {
-    flexDirection: 'row',
-    gap: 10,
-    alignItems: 'center',
-  },
-  gridInput: {
-    flex: 1,
-  },
-  bigInput: {
-    minHeight: 100,
-    textAlignVertical: 'top',
-  },
-  secondaryBtn: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-  },
-  colorRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  colorDot: {
-    width: 32,
-    height: 32,
-    borderRadius: 999,
-  },
-  pinRow: {
+  modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  draftRow: {
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+  modalTitle: {
+    fontWeight: '900',
+    letterSpacing: -0.5,
+  },
+  label: {
+    fontWeight: '800',
+    fontSize: 14,
+    marginTop: spacing.xs,
+  },
+  templateBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    borderRadius: radii.md,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
   },
-  handwritingTitle: {
-    fontWeight: '700',
+  input: {
+    borderWidth: 1.5,
+    borderRadius: radii.sm + 4,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
     fontSize: 15,
   },
+  bigInput: {
+    minHeight: 110,
+    textAlignVertical: 'top',
+  },
+  row: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    alignItems: 'center',
+  },
+  flex1: { flex: 1 },
+  colorRow: {
+    flexDirection: 'row',
+    gap: spacing.sm + 2,
+  },
+  colorDot: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 2,
+  },
+  iconCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  draftRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: radii.sm + 4,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
   signatureWrap: {
-    height: 260,
-    borderWidth: 1,
-    borderRadius: 12,
+    height: 240,
+    borderRadius: radii.md,
     overflow: 'hidden',
   },
-  rowBtns: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  actionBtn: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 12,
+  outlineBtn: {
+    borderWidth: 1.5,
+    borderRadius: radii.sm + 4,
     paddingVertical: 12,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryBtn: {
+    borderRadius: radii.sm + 4,
+    paddingVertical: 14,
     alignItems: 'center',
   },
 });

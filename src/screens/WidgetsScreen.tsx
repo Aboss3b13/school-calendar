@@ -1,107 +1,122 @@
 import React, { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 import { useTranslation } from 'react-i18next';
 import { WidgetPreview } from 'react-native-android-widget';
 import { useAppContext } from '../context/AppContext';
 import { renderSchoolOverviewWidget } from '../widgets/SchoolOverviewWidget';
 import { weightedSubjectAverage } from '../services/grades';
+import { shadows, spacing, radii } from '../theme/theme';
 
 export default function WidgetsScreen() {
   const { t } = useTranslation();
-  const { data, colors, updateSettings, fontScaleMultiplier } = useAppContext();
-
-  const cardRadius =
-    data.settings.cardStyle === 'soft' ? 22 : data.settings.cardStyle === 'glass' ? 20 : 16;
-  const cardPadding = data.settings.compactMode ? 10 : 12;
+  const { data, colors, isDark, updateSettings, fontScaleMultiplier } = useAppContext();
 
   const nextExam = useMemo(() => {
     const now = Date.now();
     return data.events
-      .filter((event) => event.entryType === 'exam' && new Date(event.start).getTime() >= now)
-      .sort((left, right) => new Date(left.start).getTime() - new Date(right.start).getTime())[0];
+      .filter((e) => e.entryType === 'exam' && new Date(e.start).getTime() >= now)
+      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())[0];
   }, [data.events]);
 
-  const openTasks = data.tasks.filter((task) => !task.completed).length;
+  const openTasks = data.tasks.filter((t) => !t.completed).length;
   const averageGrade = weightedSubjectAverage(
-    data.grades.filter((grade) => grade.track === 'official'),
+    data.grades.filter((g) => g.track === 'official'),
     data.gradeSubjectWeights,
   );
 
+  const quickStats = [
+    { icon: 'list-outline' as const, value: openTasks, label: t('dashboard.openTasks'), color: '#3B82F6' },
+    { icon: 'school-outline' as const, value: data.grades.length, label: t('grades.results'), color: '#8B5CF6' },
+    { icon: 'document-text-outline' as const, value: data.notes.length, label: t('dashboard.notesCount'), color: '#10B981' },
+  ];
+
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={styles.content}>
-      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: cardRadius, padding: cardPadding }]}> 
-        <Text style={[styles.heading, { color: colors.text, fontSize: 16 * fontScaleMultiplier }]}>{t('widgets.homeWidgets')}</Text>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <ScrollView contentContainerStyle={styles.content}>
+        {/* ── Header ─────────────────────── */}
+        <Text style={[styles.pageTitle, { color: colors.text, fontSize: 24 * fontScaleMultiplier }]}>
+          {t('widgets.homeWidgets')}
+        </Text>
 
-        <View style={styles.switchRow}> 
-          <Text style={{ color: colors.text }}>{t('widgets.enableSync')}</Text>
-          <Switch
-            value={data.settings.homescreenWidgets}
-            onValueChange={(value) => updateSettings({ homescreenWidgets: value })}
-            trackColor={{ true: colors.accent }}
-          />
+        {/* ── Enable toggle ──────────────── */}
+        <View style={[styles.card, shadows.md, { backgroundColor: colors.card }]}>
+          <View style={styles.switchRow}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Ionicons name="phone-portrait-outline" size={18} color={colors.accent} />
+              <Text style={{ color: colors.text, fontWeight: '700', fontSize: 15 }}>{t('widgets.enableSync')}</Text>
+            </View>
+            <Switch
+              value={data.settings.homescreenWidgets}
+              onValueChange={(v) => updateSettings({ homescreenWidgets: v })}
+              trackColor={{ true: colors.accent }}
+            />
+          </View>
+          <Text style={{ color: colors.subtle, fontSize: 13, lineHeight: 19 }}>{t('widgets.hint')}</Text>
         </View>
 
-        <Text style={{ color: colors.subtle }}>{t('widgets.hint')}</Text>
-
-        <View style={styles.previewWrap}> 
-          <WidgetPreview
-            width={320}
-            height={160}
-            renderWidget={() =>
-              renderSchoolOverviewWidget({
-                title: 'SchoolFlow',
-                subtitle: nextExam
-                  ? `${nextExam.title} • ${dayjs(nextExam.start).format('DD.MM HH:mm')}`
-                  : t('widgets.noExam'),
-                openTasks,
-                averageGrade,
-                accent: colors.accent,
-              })
-            }
-          />
+        {/* ── Widget Preview ─────────────── */}
+        <View style={[styles.card, shadows.sm, { backgroundColor: colors.card }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <Ionicons name="eye-outline" size={17} color={colors.accent} />
+            <Text style={{ color: colors.text, fontWeight: '900', fontSize: 16 }}>Preview</Text>
+          </View>
+          <View style={styles.previewWrap}>
+            <WidgetPreview
+              width={320}
+              height={160}
+              renderWidget={() =>
+                renderSchoolOverviewWidget({
+                  title: 'SchoolFlow',
+                  subtitle: nextExam
+                    ? `${nextExam.title} · ${dayjs(nextExam.start).format('DD.MM HH:mm')}`
+                    : t('widgets.noExam'),
+                  openTasks,
+                  averageGrade,
+                  accent: colors.accent,
+                })
+              }
+            />
+          </View>
+          <Text style={{ color: colors.subtle, fontSize: 12, lineHeight: 18 }}>{t('widgets.installSteps')}</Text>
         </View>
 
-        <Text style={{ color: colors.subtle }}>{t('widgets.installSteps')}</Text>
-      </View>
-
-      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: cardRadius, padding: cardPadding }]}> 
-        <Text style={[styles.heading, { color: colors.text, fontSize: 16 * fontScaleMultiplier }]}>{t('widgets.quickWidgets')}</Text>
-
-        <View style={styles.quickRow}> 
-          <Pressable style={[styles.quickTile, { borderColor: colors.border }]}> 
-            <Text style={{ color: colors.text, fontWeight: '900' }}>{openTasks}</Text>
-            <Text style={{ color: colors.subtle }}>{t('dashboard.openTasks')}</Text>
-          </Pressable>
-          <Pressable style={[styles.quickTile, { borderColor: colors.border }]}> 
-            <Text style={{ color: colors.text, fontWeight: '900' }}>{data.grades.length}</Text>
-            <Text style={{ color: colors.subtle }}>{t('grades.results')}</Text>
-          </Pressable>
-          <Pressable style={[styles.quickTile, { borderColor: colors.border }]}> 
-            <Text style={{ color: colors.text, fontWeight: '900' }}>{data.notes.length}</Text>
-            <Text style={{ color: colors.subtle }}>{t('dashboard.notesCount')}</Text>
-          </Pressable>
+        {/* ── Quick Stat Tiles ───────────── */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: spacing.xs }}>
+          <Ionicons name="stats-chart-outline" size={17} color={colors.accent} />
+          <Text style={{ color: colors.text, fontWeight: '900', fontSize: 17 * fontScaleMultiplier }}>{t('widgets.quickWidgets')}</Text>
         </View>
-      </View>
-    </ScrollView>
+
+        <View style={styles.quickRow}>
+          {quickStats.map((s) => (
+            <View key={s.label} style={[styles.quickTile, shadows.sm, { backgroundColor: colors.card, borderLeftWidth: 4, borderLeftColor: s.color }]}>
+              <Ionicons name={s.icon} size={20} color={s.color} />
+              <Text style={{ color: colors.text, fontWeight: '900', fontSize: 22, marginTop: 6 }}>{s.value}</Text>
+              <Text style={{ color: colors.subtle, fontWeight: '600', fontSize: 11, marginTop: 2 }}>{s.label}</Text>
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   content: {
-    padding: 16,
-    gap: 12,
-    paddingBottom: 28,
+    padding: spacing.md,
+    paddingTop: spacing.xxl,
+    paddingBottom: spacing.xl,
+    gap: spacing.md,
+  },
+  pageTitle: {
+    fontWeight: '900',
+    letterSpacing: -0.5,
   },
   card: {
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 12,
-    gap: 10,
-  },
-  heading: {
-    fontWeight: '900',
-    fontSize: 16,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    gap: spacing.sm + 2,
   },
   switchRow: {
     flexDirection: 'row',
@@ -109,21 +124,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   previewWrap: {
-    borderRadius: 16,
+    borderRadius: radii.md,
     overflow: 'hidden',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: spacing.sm,
   },
   quickRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: spacing.sm,
   },
   quickTile: {
     flex: 1,
-    borderWidth: 1,
-    borderRadius: 12,
-    minHeight: 88,
-    padding: 10,
-    justifyContent: 'space-between',
+    borderRadius: radii.md,
+    padding: spacing.sm + 4,
+    minHeight: 100,
   },
 });
