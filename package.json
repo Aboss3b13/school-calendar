@@ -6,7 +6,8 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "postinstall": "node scripts/fix-expo-linear-gradient-tsconfig.cjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",
@@ -36,6 +37,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "expo-module-scripts": "^55.0.2",
     "typescript": "~5.9.2"
   },
   "private": true

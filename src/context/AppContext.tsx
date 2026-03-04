@@ -17,10 +17,12 @@ import {
   ThemeMode,
 } from '../types/models';
 import { defaultIcalUrl } from '../services/ical';
-import { renderSchoolOverviewWidget } from '../widgets/SchoolOverviewWidget';
-import { renderCalendarWidget } from '../widgets/CalendarWidget';
-import { renderNextTestWidget } from '../widgets/NextTestWidget';
-import { renderQuickGradeWidget } from '../widgets/QuickGradeWidget';
+import {
+  renderSchoolOverviewWidget,
+  renderCalendarWidget,
+  renderNextTestWidget,
+  renderQuickGradeWidget,
+} from '../widgets';
 
 const defaultSettings: AppSettings = {
   iCalUrl: defaultIcalUrl,
