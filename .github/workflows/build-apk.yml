@@ -1,0 +1,63 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Android project
+        run: npx expo prebuild --platform android --non-interactive
+
+      - name: Build debug APK
+        run: |
+          cd android
+          ./gradlew assembleDebug
+
+      - name: Prepare APK asset
+        run: |
+          mkdir -p dist
+          cp android/app/build/outputs/apk/debug/app-debug.apk dist/SchoolFlow-Planner.apk
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SchoolFlow-Planner-apk
+          path: dist/SchoolFlow-Planner.apk
+
+      - name: Publish to GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: latest-apk
+          name: Latest APK Build
+          allowUpdates: true
+          replacesArtifacts: true
+          artifacts: dist/SchoolFlow-Planner.apk
+          body: |
+            Auto-generated Android APK from the latest main branch commit.
+            File: SchoolFlow-Planner.apk
