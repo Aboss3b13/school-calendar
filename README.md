@@ -2,7 +2,7 @@
 
 An all-in-one school organizer app for phone + tablet with iCal sync, exam tracking, study tasks, and OneNote-style notes (typed + handwriting).
 
-## Highlights
+## Highlights 
 
 - **Live school calendar sync via iCal URL**
 - **Automatic exam detection** from event titles/descriptions
