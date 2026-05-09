@@ -9,7 +9,7 @@ All-in-one school organizer app for phone + tablet with iCal sync, exam tracking
 - **Dashboard command center** with next class, upcoming exams, open tasks, notes count
 - **Monthly calendar view** with marked school events
 - **Advanced calendar sorting** by event type (lesson/event/exam), subject, and date
-- **Upcoming exams first** with expandable past-exam history
+- **Upcoming exams first** with expandable past-exam history 
 - **Task manager** with priorities, due dates, subjects, completion states
 - **Professional OneNote-style notes system**
   - Typed notes
