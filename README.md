@@ -5,7 +5,7 @@ All-in-one school organizer app for phone + tablet with iCal sync, exam tracking
 ## Highlights
 
 - **Live school calendar sync via iCal URL**
-- **Automatic exam detection** from event titles/descriptions
+- **Automatic exam detection** from event titles/descriptions 
 - **Dashboard command center** with next class, upcoming exams, open tasks, notes count
 - **Monthly calendar view** with marked school events
 - **Advanced calendar sorting** by event type (lesson/event/exam), subject, and date
