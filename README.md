@@ -1,6 +1,6 @@
 # SchoolFlow Planner (Android)
 
-All-in-one school organizer app for phone + tablet with iCal sync, exam tracking, study tasks, and OneNote-style notes (typed + handwriting).  
+All-in-one school organizer app for phone + tablet with iCal sync, exam tracking, study tasks, and OneNote-style notes (typed + handwriting). 
  
 ## Highlights
 
